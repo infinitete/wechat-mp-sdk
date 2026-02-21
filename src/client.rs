@@ -17,6 +17,7 @@ const DEFAULT_CONNECT_TIMEOUT_SECS: u64 = 10;
 ///
 /// Reusable HTTP client for calling WeChat APIs.
 /// Built with reqwest for async HTTP requests.
+#[derive(Clone)]
 #[allow(dead_code)]
 pub struct WechatClient {
     http: Client,

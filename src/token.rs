@@ -14,29 +14,29 @@ use crate::types::AccessToken;
 const MAX_RETRIES: u32 = 3;
 const RETRY_DELAY_MS: u64 = 100;
 
-struct CachedToken {
-    token: AccessToken,
-    expires_at: Instant,
+pub struct CachedToken {
+    pub token: AccessToken,
+    pub expires_at: Instant,
 }
 
 impl CachedToken {
-    fn is_expired(&self, buffer: Duration) -> bool {
+    pub fn is_expired(&self, buffer: Duration) -> bool {
         Instant::now() + buffer >= self.expires_at
     }
 }
 
 #[derive(Debug, Deserialize)]
-struct TokenResponse {
-    access_token: String,
-    expires_in: u64,
+pub struct TokenResponse {
+    pub access_token: String,
+    pub expires_in: u64,
     #[serde(default)]
-    errcode: i32,
+    pub errcode: i32,
     #[serde(default)]
-    errmsg: String,
+    pub errmsg: String,
 }
 
 impl TokenResponse {
-    fn is_success(&self) -> bool {
+    pub fn is_success(&self) -> bool {
         self.errcode == 0
     }
 }
@@ -44,8 +44,8 @@ impl TokenResponse {
 /// Manages access_token lifecycle with automatic refresh
 pub struct TokenManager {
     client: WechatClient,
-    cache: Mutex<Option<CachedToken>>,
-    refresh_buffer: Duration,
+    pub cache: Mutex<Option<CachedToken>>,
+    pub refresh_buffer: Duration,
 }
 
 impl TokenManager {
