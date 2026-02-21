@@ -90,9 +90,13 @@ pub use nearby::{
     NearbyShowStatusRequest,
 };
 pub use ocr::{IdCardOcrRequest, OcrApi, OcrImageRequest, OcrResponse};
+pub use openapi::{
+    ApiQuotaResponse, CallbackCheckResponse, DnsInfo, IpListResponse, OpenApiApi, PingInfo,
+    QuotaInfo, RidInfoResponse, RidRequestInfo,
+};
 pub use operations::{
-    FeedbackMediaRequest, FeedbackRequest, JsErrDetailRequest, JsErrListRequest, OperationsApi,
-    OperationsResponse, RealtimeLogSearchRequest,
+    EmptyRequest, FeedbackMediaRequest, FeedbackRequest, JsErrDetailRequest, JsErrListRequest,
+    OperationsApi, OperationsResponse, RealtimeLogSearchRequest,
 };
 pub use plugin::{ManagePluginApplicationRequest, ManagePluginRequest, PluginApi, PluginResponse};
 pub use r#trait::{WechatApi, WechatContext};
