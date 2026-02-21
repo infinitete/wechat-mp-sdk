@@ -931,7 +931,6 @@ mod coverage_matrix {
     }
 
     #[test]
-    #[ignore = "Enable when all non-deprecated endpoints are implemented"]
     fn non_deprecated_missing_endpoints_zero() {
         let stats = collect_coverage_stats();
         assert_eq!(
