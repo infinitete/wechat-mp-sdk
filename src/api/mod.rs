@@ -64,22 +64,51 @@ pub mod user;
 pub mod wechat_kf;
 pub mod wxsearch;
 
+pub use advertising::{AdvertisingApi, AdvertisingRequest, AdvertisingResponse};
+pub use analytics::{
+    AnalyticsApi, AnalyticsDateRangeRequest, AnalyticsResponse, PerformanceDataRequest,
+};
+pub use cloud::{
+    CloudApi, CloudDatabaseRequest, CloudResponse, DelayedFunctionTaskRequest,
+    DeleteCloudFileRequest, DownloadFileLinkRequest, InvokeCloudFunctionRequest,
+    SendCloudBaseSmsRequest, UploadFileLinkRequest,
+};
 pub use common::{
     ApiResponseBase, DateRangeRequest, PaginatedRequest, PaginatedResponse, WechatApiResponse,
 };
 pub use customer_service::{
     CustomerServiceApi, LinkMessage, MediaMessage, Message, MiniProgramPageMessage, TextMessage,
 };
+pub use delivery::{DeliveryApi, DeliveryRequest, DeliveryResponse};
+pub use face::{FaceApi, FaceResponse, GetVerifyIdRequest, QueryVerifyInfoRequest};
+pub use hardware::{HardwareApi, HardwareRequest, HardwareResponse};
+pub use live::{DeleteRoomRequest, GetLiveInfoRequest, LiveApi, LiveRequest, LiveResponse};
+pub use logistics::{LogisticsApi, LogisticsRequest, LogisticsResponse};
 pub use media::{MediaApi, MediaType, MediaUploadResponse};
+pub use nearby::{
+    AddNearbyPoiRequest, DeleteNearbyPoiRequest, NearbyApi, NearbyPoiListRequest, NearbyResponse,
+    NearbyShowStatusRequest,
+};
+pub use ocr::{IdCardOcrRequest, OcrApi, OcrImageRequest, OcrResponse};
+pub use operations::{
+    FeedbackMediaRequest, FeedbackRequest, JsErrDetailRequest, JsErrListRequest, OperationsApi,
+    OperationsResponse, RealtimeLogSearchRequest,
+};
+pub use plugin::{ManagePluginApplicationRequest, ManagePluginRequest, PluginApi, PluginResponse};
 pub use r#trait::{WechatApi, WechatContext};
 pub use security::{
     MediaCheckAsyncResponse, MsgSecCheckDetail, MsgSecCheckResponse, MsgSecCheckResult,
     SecurityApi, UserRiskRankOptions, UserRiskRankResponse,
 };
+pub use service_market::{InvokeServiceRequest, ServiceMarketApi, ServiceMarketResponse};
+pub use soter::{SoterApi, VerifySignatureRequest, VerifySignatureResponse};
 pub use subscribe::{
-    AddTemplateResponse, CategoryInfo, CategoryListResponse, Lang, MiniProgramState, SubscribeApi,
-    SubscribeMessageData, SubscribeMessageOptions, SubscribeMessageValue, TemplateInfo,
-    TemplateListResponse,
+    AddTemplateResponse, CategoryInfo, CategoryListResponse, GetUserNotifyRequest, Lang,
+    MiniProgramState, PubTemplateKeywordInfo, PubTemplateKeywordResponse, PubTemplateTitleInfo,
+    PubTemplateTitleListResponse, SubscribeApi, SubscribeMessageData, SubscribeMessageOptions,
+    SubscribeMessageValue, TemplateInfo, TemplateListResponse, UserNotifyExtRequest,
+    UserNotifyRequest, UserNotifyResponse,
 };
 pub use template::TemplateApi;
 pub use wechat_kf::{KfWorkBoundResponse, KfWorkInfo, WechatKfApi};
+pub use wxsearch::{SubmitPagesRequest, SubmitPagesResponse, WxsearchApi};

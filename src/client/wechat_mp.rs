@@ -2,10 +2,36 @@
 
 use std::sync::Arc;
 
+use crate::api::advertising::{AdvertisingApi, AdvertisingRequest, AdvertisingResponse};
+use crate::api::analytics::{
+    AnalyticsApi, AnalyticsDateRangeRequest, AnalyticsResponse, PerformanceDataRequest,
+};
 use crate::api::auth::{LoginResponse, ResetSessionKeyResponse, StableAccessTokenResponse};
+use crate::api::cloud::{
+    CloudApi, CloudDatabaseRequest, CloudResponse, DelayedFunctionTaskRequest,
+    DeleteCloudFileRequest, DownloadFileLinkRequest, InvokeCloudFunctionRequest,
+    SendCloudBaseSmsRequest, UploadFileLinkRequest,
+};
 use crate::api::customer_service::TypingCommand;
+use crate::api::delivery::{DeliveryApi, DeliveryRequest, DeliveryResponse};
+use crate::api::face::{FaceApi, FaceResponse, GetVerifyIdRequest, QueryVerifyInfoRequest};
+use crate::api::hardware::{HardwareApi, HardwareRequest, HardwareResponse};
+use crate::api::live::{DeleteRoomRequest, GetLiveInfoRequest, LiveApi, LiveRequest, LiveResponse};
+use crate::api::logistics::{LogisticsApi, LogisticsRequest, LogisticsResponse};
+use crate::api::nearby::{
+    AddNearbyPoiRequest, DeleteNearbyPoiRequest, NearbyApi, NearbyPoiListRequest, NearbyResponse,
+    NearbyShowStatusRequest,
+};
+use crate::api::ocr::{IdCardOcrRequest, OcrApi, OcrImageRequest, OcrResponse};
 use crate::api::openapi::{
     ApiQuotaResponse, CallbackCheckResponse, IpListResponse, OpenApiApi, RidInfoResponse,
+};
+use crate::api::operations::{
+    FeedbackMediaRequest, FeedbackRequest, JsErrDetailRequest, JsErrListRequest, OperationsApi,
+    OperationsResponse, RealtimeLogSearchRequest,
+};
+use crate::api::plugin::{
+    ManagePluginApplicationRequest, ManagePluginRequest, PluginApi, PluginResponse,
 };
 use crate::api::qrcode::{
     NfcSchemeOptions, NfcSchemeResponse, QrcodeApi, QrcodeOptions, QuerySchemeResponse,
@@ -15,13 +41,20 @@ use crate::api::security::{
     MediaCheckAsyncResponse, MsgSecCheckResponse, SecurityApi, UserRiskRankOptions,
     UserRiskRankResponse,
 };
+use crate::api::service_market::{InvokeServiceRequest, ServiceMarketApi, ServiceMarketResponse};
+use crate::api::soter::{SoterApi, VerifySignatureRequest, VerifySignatureResponse};
 use crate::api::subscribe::SubscribeApi;
+use crate::api::subscribe::{
+    GetUserNotifyRequest, PubTemplateKeywordResponse, PubTemplateTitleListResponse,
+    UserNotifyExtRequest, UserNotifyRequest, UserNotifyResponse,
+};
 use crate::api::template::TemplateApi;
 use crate::api::user::{
     CheckEncryptedDataResponse, PaidUnionIdResponse, PhoneNumberResponse, PluginOpenPIdResponse,
     UserEncryptKeyResponse,
 };
 use crate::api::wechat_kf::{KfWorkBoundResponse, WechatKfApi};
+use crate::api::wxsearch::{SubmitPagesRequest, SubmitPagesResponse, WxsearchApi};
 use crate::api::WechatContext;
 use crate::api::{
     CategoryInfo, MediaApi, MediaType, MediaUploadResponse, Message, SubscribeMessageOptions,
@@ -428,6 +461,732 @@ impl WechatMp {
     pub async fn unbind_kf_work(&self, openid: &str, open_kfid: &str) -> Result<(), WechatError> {
         WechatKfApi::new(self.context.clone())
             .unbind_kf_work(openid, open_kfid)
+            .await
+    }
+
+    pub async fn get_pub_template_keywords_by_id(
+        &self,
+        tid: &str,
+    ) -> Result<PubTemplateKeywordResponse, WechatError> {
+        SubscribeApi::new(self.context.clone())
+            .get_pub_template_keywords_by_id(tid)
+            .await
+    }
+
+    pub async fn get_pub_template_title_list(
+        &self,
+        ids: &[i32],
+        start: i32,
+        limit: i32,
+    ) -> Result<PubTemplateTitleListResponse, WechatError> {
+        SubscribeApi::new(self.context.clone())
+            .get_pub_template_title_list(ids, start, limit)
+            .await
+    }
+
+    pub async fn set_user_notify(
+        &self,
+        request: &UserNotifyRequest,
+    ) -> Result<UserNotifyResponse, WechatError> {
+        SubscribeApi::new(self.context.clone())
+            .set_user_notify(request)
+            .await
+    }
+
+    pub async fn set_user_notify_ext(
+        &self,
+        request: &UserNotifyExtRequest,
+    ) -> Result<UserNotifyResponse, WechatError> {
+        SubscribeApi::new(self.context.clone())
+            .set_user_notify_ext(request)
+            .await
+    }
+
+    pub async fn get_user_notify(
+        &self,
+        request: &GetUserNotifyRequest,
+    ) -> Result<UserNotifyResponse, WechatError> {
+        SubscribeApi::new(self.context.clone())
+            .get_user_notify(request)
+            .await
+    }
+
+    pub async fn get_daily_summary(
+        &self,
+        request: &AnalyticsDateRangeRequest,
+    ) -> Result<AnalyticsResponse, WechatError> {
+        AnalyticsApi::new(self.context.clone())
+            .get_daily_summary(request)
+            .await
+    }
+
+    pub async fn get_daily_visit_trend(
+        &self,
+        request: &AnalyticsDateRangeRequest,
+    ) -> Result<AnalyticsResponse, WechatError> {
+        AnalyticsApi::new(self.context.clone())
+            .get_daily_visit_trend(request)
+            .await
+    }
+
+    pub async fn get_weekly_visit_trend(
+        &self,
+        request: &AnalyticsDateRangeRequest,
+    ) -> Result<AnalyticsResponse, WechatError> {
+        AnalyticsApi::new(self.context.clone())
+            .get_weekly_visit_trend(request)
+            .await
+    }
+
+    pub async fn get_monthly_visit_trend(
+        &self,
+        request: &AnalyticsDateRangeRequest,
+    ) -> Result<AnalyticsResponse, WechatError> {
+        AnalyticsApi::new(self.context.clone())
+            .get_monthly_visit_trend(request)
+            .await
+    }
+
+    pub async fn get_daily_retain(
+        &self,
+        request: &AnalyticsDateRangeRequest,
+    ) -> Result<AnalyticsResponse, WechatError> {
+        AnalyticsApi::new(self.context.clone())
+            .get_daily_retain(request)
+            .await
+    }
+
+    pub async fn get_weekly_retain(
+        &self,
+        request: &AnalyticsDateRangeRequest,
+    ) -> Result<AnalyticsResponse, WechatError> {
+        AnalyticsApi::new(self.context.clone())
+            .get_weekly_retain(request)
+            .await
+    }
+
+    pub async fn get_monthly_retain(
+        &self,
+        request: &AnalyticsDateRangeRequest,
+    ) -> Result<AnalyticsResponse, WechatError> {
+        AnalyticsApi::new(self.context.clone())
+            .get_monthly_retain(request)
+            .await
+    }
+
+    pub async fn get_visit_page(
+        &self,
+        request: &AnalyticsDateRangeRequest,
+    ) -> Result<AnalyticsResponse, WechatError> {
+        AnalyticsApi::new(self.context.clone())
+            .get_visit_page(request)
+            .await
+    }
+
+    pub async fn get_visit_distribution(
+        &self,
+        request: &AnalyticsDateRangeRequest,
+    ) -> Result<AnalyticsResponse, WechatError> {
+        AnalyticsApi::new(self.context.clone())
+            .get_visit_distribution(request)
+            .await
+    }
+
+    pub async fn get_user_portrait(
+        &self,
+        request: &AnalyticsDateRangeRequest,
+    ) -> Result<AnalyticsResponse, WechatError> {
+        AnalyticsApi::new(self.context.clone())
+            .get_user_portrait(request)
+            .await
+    }
+
+    pub async fn get_performance_data(
+        &self,
+        request: &PerformanceDataRequest,
+    ) -> Result<AnalyticsResponse, WechatError> {
+        AnalyticsApi::new(self.context.clone())
+            .get_performance_data(request)
+            .await
+    }
+
+    pub async fn get_domain_info(&self) -> Result<OperationsResponse, WechatError> {
+        OperationsApi::new(self.context.clone())
+            .get_domain_info()
+            .await
+    }
+
+    pub async fn get_operations_performance(&self) -> Result<OperationsResponse, WechatError> {
+        OperationsApi::new(self.context.clone())
+            .get_performance()
+            .await
+    }
+
+    pub async fn get_scene_list(&self) -> Result<OperationsResponse, WechatError> {
+        OperationsApi::new(self.context.clone())
+            .get_scene_list()
+            .await
+    }
+
+    pub async fn get_version_list(&self) -> Result<OperationsResponse, WechatError> {
+        OperationsApi::new(self.context.clone())
+            .get_version_list()
+            .await
+    }
+
+    pub async fn realtime_log_search(
+        &self,
+        request: &RealtimeLogSearchRequest,
+    ) -> Result<OperationsResponse, WechatError> {
+        OperationsApi::new(self.context.clone())
+            .realtime_log_search(request)
+            .await
+    }
+
+    pub async fn get_feedback(
+        &self,
+        request: &FeedbackRequest,
+    ) -> Result<OperationsResponse, WechatError> {
+        OperationsApi::new(self.context.clone())
+            .get_feedback(request)
+            .await
+    }
+
+    pub async fn get_feedback_media(
+        &self,
+        request: &FeedbackMediaRequest,
+    ) -> Result<OperationsResponse, WechatError> {
+        OperationsApi::new(self.context.clone())
+            .get_feedback_media(request)
+            .await
+    }
+
+    pub async fn get_js_err_detail(
+        &self,
+        request: &JsErrDetailRequest,
+    ) -> Result<OperationsResponse, WechatError> {
+        OperationsApi::new(self.context.clone())
+            .get_js_err_detail(request)
+            .await
+    }
+
+    pub async fn get_js_err_list(
+        &self,
+        request: &JsErrListRequest,
+    ) -> Result<OperationsResponse, WechatError> {
+        OperationsApi::new(self.context.clone())
+            .get_js_err_list(request)
+            .await
+    }
+
+    pub async fn get_gray_release_plan(&self) -> Result<OperationsResponse, WechatError> {
+        OperationsApi::new(self.context.clone())
+            .get_gray_release_plan()
+            .await
+    }
+
+    pub async fn manage_plugin_application(
+        &self,
+        request: &ManagePluginApplicationRequest,
+    ) -> Result<PluginResponse, WechatError> {
+        PluginApi::new(self.context.clone())
+            .manage_plugin_application(request)
+            .await
+    }
+
+    pub async fn manage_plugin(
+        &self,
+        request: &ManagePluginRequest,
+    ) -> Result<PluginResponse, WechatError> {
+        PluginApi::new(self.context.clone())
+            .manage_plugin(request)
+            .await
+    }
+
+    pub async fn add_nearby_poi(
+        &self,
+        request: &AddNearbyPoiRequest,
+    ) -> Result<NearbyResponse, WechatError> {
+        NearbyApi::new(self.context.clone())
+            .add_nearby_poi(request)
+            .await
+    }
+
+    pub async fn delete_nearby_poi(
+        &self,
+        request: &DeleteNearbyPoiRequest,
+    ) -> Result<NearbyResponse, WechatError> {
+        NearbyApi::new(self.context.clone())
+            .delete_nearby_poi(request)
+            .await
+    }
+
+    pub async fn get_nearby_poi_list(
+        &self,
+        request: &NearbyPoiListRequest,
+    ) -> Result<NearbyResponse, WechatError> {
+        NearbyApi::new(self.context.clone())
+            .get_nearby_poi_list(request)
+            .await
+    }
+
+    pub async fn set_nearby_show_status(
+        &self,
+        request: &NearbyShowStatusRequest,
+    ) -> Result<NearbyResponse, WechatError> {
+        NearbyApi::new(self.context.clone())
+            .set_show_status(request)
+            .await
+    }
+
+    pub async fn invoke_cloud_function(
+        &self,
+        request: &InvokeCloudFunctionRequest,
+    ) -> Result<CloudResponse, WechatError> {
+        CloudApi::new(self.context.clone())
+            .invoke_cloud_function(request)
+            .await
+    }
+
+    pub async fn add_delayed_function_task(
+        &self,
+        request: &DelayedFunctionTaskRequest,
+    ) -> Result<CloudResponse, WechatError> {
+        CloudApi::new(self.context.clone())
+            .add_delayed_function_task(request)
+            .await
+    }
+
+    pub async fn database_add(
+        &self,
+        request: &CloudDatabaseRequest,
+    ) -> Result<CloudResponse, WechatError> {
+        CloudApi::new(self.context.clone())
+            .database_add(request)
+            .await
+    }
+
+    pub async fn database_delete(
+        &self,
+        request: &CloudDatabaseRequest,
+    ) -> Result<CloudResponse, WechatError> {
+        CloudApi::new(self.context.clone())
+            .database_delete(request)
+            .await
+    }
+
+    pub async fn database_update(
+        &self,
+        request: &CloudDatabaseRequest,
+    ) -> Result<CloudResponse, WechatError> {
+        CloudApi::new(self.context.clone())
+            .database_update(request)
+            .await
+    }
+
+    pub async fn database_query(
+        &self,
+        request: &CloudDatabaseRequest,
+    ) -> Result<CloudResponse, WechatError> {
+        CloudApi::new(self.context.clone())
+            .database_query(request)
+            .await
+    }
+
+    pub async fn get_upload_file_link(
+        &self,
+        request: &UploadFileLinkRequest,
+    ) -> Result<CloudResponse, WechatError> {
+        CloudApi::new(self.context.clone())
+            .get_upload_file_link(request)
+            .await
+    }
+
+    pub async fn get_download_file_link(
+        &self,
+        request: &DownloadFileLinkRequest,
+    ) -> Result<CloudResponse, WechatError> {
+        CloudApi::new(self.context.clone())
+            .get_download_file_link(request)
+            .await
+    }
+
+    pub async fn delete_cloud_file(
+        &self,
+        request: &DeleteCloudFileRequest,
+    ) -> Result<CloudResponse, WechatError> {
+        CloudApi::new(self.context.clone())
+            .delete_cloud_file(request)
+            .await
+    }
+
+    pub async fn new_send_cloud_base_sms(
+        &self,
+        request: &SendCloudBaseSmsRequest,
+    ) -> Result<CloudResponse, WechatError> {
+        CloudApi::new(self.context.clone())
+            .new_send_cloud_base_sms(request)
+            .await
+    }
+
+    pub async fn create_room(&self, request: &LiveRequest) -> Result<LiveResponse, WechatError> {
+        LiveApi::new(self.context.clone())
+            .create_room(request)
+            .await
+    }
+
+    pub async fn delete_room(
+        &self,
+        request: &DeleteRoomRequest,
+    ) -> Result<LiveResponse, WechatError> {
+        LiveApi::new(self.context.clone())
+            .delete_room(request)
+            .await
+    }
+
+    pub async fn edit_room(&self, request: &LiveRequest) -> Result<LiveResponse, WechatError> {
+        LiveApi::new(self.context.clone()).edit_room(request).await
+    }
+
+    pub async fn get_live_info(
+        &self,
+        request: &GetLiveInfoRequest,
+    ) -> Result<LiveResponse, WechatError> {
+        LiveApi::new(self.context.clone())
+            .get_live_info(request)
+            .await
+    }
+
+    pub async fn add_goods(&self, request: &LiveRequest) -> Result<LiveResponse, WechatError> {
+        LiveApi::new(self.context.clone()).add_goods(request).await
+    }
+
+    pub async fn update_goods_info(
+        &self,
+        request: &LiveRequest,
+    ) -> Result<LiveResponse, WechatError> {
+        LiveApi::new(self.context.clone())
+            .update_goods_info(request)
+            .await
+    }
+
+    pub async fn delete_goods_info(
+        &self,
+        request: &LiveRequest,
+    ) -> Result<LiveResponse, WechatError> {
+        LiveApi::new(self.context.clone())
+            .delete_goods_info(request)
+            .await
+    }
+
+    pub async fn push_message(&self, request: &LiveRequest) -> Result<LiveResponse, WechatError> {
+        LiveApi::new(self.context.clone())
+            .push_message(request)
+            .await
+    }
+
+    pub async fn get_followers(&self, request: &LiveRequest) -> Result<LiveResponse, WechatError> {
+        LiveApi::new(self.context.clone())
+            .get_followers(request)
+            .await
+    }
+
+    pub async fn send_hardware_device_message(
+        &self,
+        request: &HardwareRequest,
+    ) -> Result<HardwareResponse, WechatError> {
+        HardwareApi::new(self.context.clone())
+            .send_hardware_device_message(request)
+            .await
+    }
+
+    pub async fn get_sn_ticket(
+        &self,
+        request: &HardwareRequest,
+    ) -> Result<HardwareResponse, WechatError> {
+        HardwareApi::new(self.context.clone())
+            .get_sn_ticket(request)
+            .await
+    }
+
+    pub async fn create_iot_group_id(
+        &self,
+        request: &HardwareRequest,
+    ) -> Result<HardwareResponse, WechatError> {
+        HardwareApi::new(self.context.clone())
+            .create_iot_group_id(request)
+            .await
+    }
+
+    pub async fn get_iot_group_info(
+        &self,
+        request: &HardwareRequest,
+    ) -> Result<HardwareResponse, WechatError> {
+        HardwareApi::new(self.context.clone())
+            .get_iot_group_info(request)
+            .await
+    }
+
+    pub async fn add_iot_group_device(
+        &self,
+        request: &HardwareRequest,
+    ) -> Result<HardwareResponse, WechatError> {
+        HardwareApi::new(self.context.clone())
+            .add_iot_group_device(request)
+            .await
+    }
+
+    pub async fn remove_iot_group_device(
+        &self,
+        request: &HardwareRequest,
+    ) -> Result<HardwareResponse, WechatError> {
+        HardwareApi::new(self.context.clone())
+            .remove_iot_group_device(request)
+            .await
+    }
+
+    pub async fn ai_crop(&self, request: &OcrImageRequest) -> Result<OcrResponse, WechatError> {
+        OcrApi::new(self.context.clone()).ai_crop(request).await
+    }
+
+    pub async fn scan_qr_code(
+        &self,
+        request: &OcrImageRequest,
+    ) -> Result<OcrResponse, WechatError> {
+        OcrApi::new(self.context.clone())
+            .scan_qr_code(request)
+            .await
+    }
+
+    pub async fn printed_text_ocr(
+        &self,
+        request: &OcrImageRequest,
+    ) -> Result<OcrResponse, WechatError> {
+        OcrApi::new(self.context.clone())
+            .printed_text_ocr(request)
+            .await
+    }
+
+    pub async fn vehicle_license_ocr(
+        &self,
+        request: &OcrImageRequest,
+    ) -> Result<OcrResponse, WechatError> {
+        OcrApi::new(self.context.clone())
+            .vehicle_license_ocr(request)
+            .await
+    }
+
+    pub async fn bank_card_ocr(
+        &self,
+        request: &OcrImageRequest,
+    ) -> Result<OcrResponse, WechatError> {
+        OcrApi::new(self.context.clone())
+            .bank_card_ocr(request)
+            .await
+    }
+
+    pub async fn business_license_ocr(
+        &self,
+        request: &OcrImageRequest,
+    ) -> Result<OcrResponse, WechatError> {
+        OcrApi::new(self.context.clone())
+            .business_license_ocr(request)
+            .await
+    }
+
+    pub async fn driver_license_ocr(
+        &self,
+        request: &OcrImageRequest,
+    ) -> Result<OcrResponse, WechatError> {
+        OcrApi::new(self.context.clone())
+            .driver_license_ocr(request)
+            .await
+    }
+
+    pub async fn id_card_ocr(
+        &self,
+        request: &IdCardOcrRequest,
+    ) -> Result<OcrResponse, WechatError> {
+        OcrApi::new(self.context.clone()).id_card_ocr(request).await
+    }
+
+    pub async fn get_all_imme_delivery(
+        &self,
+        request: &DeliveryRequest,
+    ) -> Result<DeliveryResponse, WechatError> {
+        DeliveryApi::new(self.context.clone())
+            .get_all_imme_delivery(request)
+            .await
+    }
+
+    pub async fn pre_add_order(
+        &self,
+        request: &DeliveryRequest,
+    ) -> Result<DeliveryResponse, WechatError> {
+        DeliveryApi::new(self.context.clone())
+            .pre_add_order(request)
+            .await
+    }
+
+    pub async fn pre_cancel_order(
+        &self,
+        request: &DeliveryRequest,
+    ) -> Result<DeliveryResponse, WechatError> {
+        DeliveryApi::new(self.context.clone())
+            .pre_cancel_order(request)
+            .await
+    }
+
+    pub async fn add_local_order(
+        &self,
+        request: &DeliveryRequest,
+    ) -> Result<DeliveryResponse, WechatError> {
+        DeliveryApi::new(self.context.clone())
+            .add_local_order(request)
+            .await
+    }
+
+    pub async fn cancel_local_order(
+        &self,
+        request: &DeliveryRequest,
+    ) -> Result<DeliveryResponse, WechatError> {
+        DeliveryApi::new(self.context.clone())
+            .cancel_local_order(request)
+            .await
+    }
+
+    pub async fn bind_account(
+        &self,
+        request: &LogisticsRequest,
+    ) -> Result<LogisticsResponse, WechatError> {
+        LogisticsApi::new(self.context.clone())
+            .bind_account(request)
+            .await
+    }
+
+    pub async fn get_all_account(
+        &self,
+        request: &LogisticsRequest,
+    ) -> Result<LogisticsResponse, WechatError> {
+        LogisticsApi::new(self.context.clone())
+            .get_all_account(request)
+            .await
+    }
+
+    pub async fn get_all_delivery(
+        &self,
+        request: &LogisticsRequest,
+    ) -> Result<LogisticsResponse, WechatError> {
+        LogisticsApi::new(self.context.clone())
+            .get_all_delivery(request)
+            .await
+    }
+
+    pub async fn get_order(
+        &self,
+        request: &LogisticsRequest,
+    ) -> Result<LogisticsResponse, WechatError> {
+        LogisticsApi::new(self.context.clone())
+            .get_order(request)
+            .await
+    }
+
+    pub async fn add_order(
+        &self,
+        request: &LogisticsRequest,
+    ) -> Result<LogisticsResponse, WechatError> {
+        LogisticsApi::new(self.context.clone())
+            .add_order(request)
+            .await
+    }
+
+    pub async fn get_path(
+        &self,
+        request: &LogisticsRequest,
+    ) -> Result<LogisticsResponse, WechatError> {
+        LogisticsApi::new(self.context.clone())
+            .get_path(request)
+            .await
+    }
+
+    pub async fn invoke_service(
+        &self,
+        request: &InvokeServiceRequest,
+    ) -> Result<ServiceMarketResponse, WechatError> {
+        ServiceMarketApi::new(self.context.clone())
+            .invoke_service(request)
+            .await
+    }
+
+    pub async fn verify_signature(
+        &self,
+        request: &VerifySignatureRequest,
+    ) -> Result<VerifySignatureResponse, WechatError> {
+        SoterApi::new(self.context.clone())
+            .verify_signature(request)
+            .await
+    }
+
+    pub async fn get_verify_id(
+        &self,
+        request: &GetVerifyIdRequest,
+    ) -> Result<FaceResponse, WechatError> {
+        FaceApi::new(self.context.clone())
+            .get_verify_id(request)
+            .await
+    }
+
+    pub async fn query_verify_info(
+        &self,
+        request: &QueryVerifyInfoRequest,
+    ) -> Result<FaceResponse, WechatError> {
+        FaceApi::new(self.context.clone())
+            .query_verify_info(request)
+            .await
+    }
+
+    pub async fn submit_pages(
+        &self,
+        request: &SubmitPagesRequest,
+    ) -> Result<SubmitPagesResponse, WechatError> {
+        WxsearchApi::new(self.context.clone())
+            .submit_pages(request)
+            .await
+    }
+
+    pub async fn add_user_action(
+        &self,
+        request: &AdvertisingRequest,
+    ) -> Result<AdvertisingResponse, WechatError> {
+        AdvertisingApi::new(self.context.clone())
+            .add_user_action(request)
+            .await
+    }
+
+    pub async fn add_user_action_set(
+        &self,
+        request: &AdvertisingRequest,
+    ) -> Result<AdvertisingResponse, WechatError> {
+        AdvertisingApi::new(self.context.clone())
+            .add_user_action_set(request)
+            .await
+    }
+
+    pub async fn get_user_action_set_reports(
+        &self,
+        request: &AdvertisingRequest,
+    ) -> Result<AdvertisingResponse, WechatError> {
+        AdvertisingApi::new(self.context.clone())
+            .get_user_action_set_reports(request)
+            .await
+    }
+
+    pub async fn get_user_action_sets(
+        &self,
+        request: &AdvertisingRequest,
+    ) -> Result<AdvertisingResponse, WechatError> {
+        AdvertisingApi::new(self.context.clone())
+            .get_user_action_sets(request)
             .await
     }
 

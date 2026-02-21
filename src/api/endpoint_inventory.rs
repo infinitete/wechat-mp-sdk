@@ -368,7 +368,7 @@ pub const ENDPOINT_INVENTORY: &[EndpointInventoryItem] = &[
         "GET",
         "/wxaapi/newtmpl/getpubtemplatekeywords",
         false,
-        false,
+        true,
         EndpointPriority::Extended,
     ),
     item(
@@ -377,7 +377,7 @@ pub const ENDPOINT_INVENTORY: &[EndpointInventoryItem] = &[
         "GET",
         "/wxaapi/newtmpl/getpubtemplatetitles",
         false,
-        false,
+        true,
         EndpointPriority::Extended,
     ),
     item(
@@ -395,7 +395,7 @@ pub const ENDPOINT_INVENTORY: &[EndpointInventoryItem] = &[
         "POST",
         "/cgi-bin/message/update_template_card",
         false,
-        false,
+        true,
         EndpointPriority::Vertical,
     ),
     item(
@@ -404,7 +404,7 @@ pub const ENDPOINT_INVENTORY: &[EndpointInventoryItem] = &[
         "POST",
         "/cgi-bin/message/update_template_card_ext",
         false,
-        false,
+        true,
         EndpointPriority::Vertical,
     ),
     item(
@@ -413,7 +413,7 @@ pub const ENDPOINT_INVENTORY: &[EndpointInventoryItem] = &[
         "POST",
         "/cgi-bin/message/get_template_card",
         false,
-        false,
+        true,
         EndpointPriority::Vertical,
     ),
     item(
@@ -449,7 +449,7 @@ pub const ENDPOINT_INVENTORY: &[EndpointInventoryItem] = &[
         "POST",
         "/datacube/getweanalysisappiddailysummarytrend",
         false,
-        false,
+        true,
         EndpointPriority::Extended,
     ),
     item(
@@ -458,7 +458,7 @@ pub const ENDPOINT_INVENTORY: &[EndpointInventoryItem] = &[
         "POST",
         "/datacube/getweanalysisappiddailyvisittrend",
         false,
-        false,
+        true,
         EndpointPriority::Extended,
     ),
     item(
@@ -467,7 +467,7 @@ pub const ENDPOINT_INVENTORY: &[EndpointInventoryItem] = &[
         "POST",
         "/datacube/getweanalysisappidweeklyvisittrend",
         false,
-        false,
+        true,
         EndpointPriority::Extended,
     ),
     item(
@@ -476,7 +476,7 @@ pub const ENDPOINT_INVENTORY: &[EndpointInventoryItem] = &[
         "POST",
         "/datacube/getweanalysisappidmonthlyvisittrend",
         false,
-        false,
+        true,
         EndpointPriority::Extended,
     ),
     item(
@@ -485,7 +485,7 @@ pub const ENDPOINT_INVENTORY: &[EndpointInventoryItem] = &[
         "POST",
         "/datacube/getweanalysisappiddailyretaininfo",
         false,
-        false,
+        true,
         EndpointPriority::Extended,
     ),
     item(
@@ -494,7 +494,7 @@ pub const ENDPOINT_INVENTORY: &[EndpointInventoryItem] = &[
         "POST",
         "/datacube/getweanalysisappidweeklyretaininfo",
         false,
-        false,
+        true,
         EndpointPriority::Extended,
     ),
     item(
@@ -503,7 +503,7 @@ pub const ENDPOINT_INVENTORY: &[EndpointInventoryItem] = &[
         "POST",
         "/datacube/getweanalysisappidmonthlyretaininfo",
         false,
-        false,
+        true,
         EndpointPriority::Extended,
     ),
     item(
@@ -512,7 +512,7 @@ pub const ENDPOINT_INVENTORY: &[EndpointInventoryItem] = &[
         "POST",
         "/datacube/getweanalysisappidvisitpage",
         false,
-        false,
+        true,
         EndpointPriority::Extended,
     ),
     item(
@@ -521,7 +521,7 @@ pub const ENDPOINT_INVENTORY: &[EndpointInventoryItem] = &[
         "POST",
         "/datacube/getweanalysisappidvisitdistribution",
         false,
-        false,
+        true,
         EndpointPriority::Extended,
     ),
     item(
@@ -530,7 +530,7 @@ pub const ENDPOINT_INVENTORY: &[EndpointInventoryItem] = &[
         "POST",
         "/datacube/getweanalysisappiduserportrait",
         false,
-        false,
+        true,
         EndpointPriority::Extended,
     ),
     item(
@@ -539,7 +539,7 @@ pub const ENDPOINT_INVENTORY: &[EndpointInventoryItem] = &[
         "POST",
         "/wxaapi/log/get_performance",
         false,
-        false,
+        true,
         EndpointPriority::Extended,
     ),
     item(
@@ -548,7 +548,7 @@ pub const ENDPOINT_INVENTORY: &[EndpointInventoryItem] = &[
         "POST",
         "/wxa/get_wxa_domain",
         false,
-        false,
+        true,
         EndpointPriority::Extended,
     ),
     item(
@@ -557,7 +557,7 @@ pub const ENDPOINT_INVENTORY: &[EndpointInventoryItem] = &[
         "POST",
         "/wxaapi/log/get_performance",
         false,
-        false,
+        true,
         EndpointPriority::Extended,
     ),
     item(
@@ -566,7 +566,7 @@ pub const ENDPOINT_INVENTORY: &[EndpointInventoryItem] = &[
         "GET",
         "/wxaapi/log/get_scene",
         false,
-        false,
+        true,
         EndpointPriority::Extended,
     ),
     item(
@@ -575,7 +575,7 @@ pub const ENDPOINT_INVENTORY: &[EndpointInventoryItem] = &[
         "GET",
         "/wxaapi/log/get_client_version",
         false,
-        false,
+        true,
         EndpointPriority::Extended,
     ),
     item(
@@ -584,7 +584,7 @@ pub const ENDPOINT_INVENTORY: &[EndpointInventoryItem] = &[
         "POST",
         "/wxaapi/userlog/userlog_search",
         false,
-        false,
+        true,
         EndpointPriority::Extended,
     ),
     item(
@@ -593,7 +593,7 @@ pub const ENDPOINT_INVENTORY: &[EndpointInventoryItem] = &[
         "POST",
         "/wxaapi/feedback/list",
         false,
-        false,
+        true,
         EndpointPriority::Extended,
     ),
     item(
@@ -602,7 +602,7 @@ pub const ENDPOINT_INVENTORY: &[EndpointInventoryItem] = &[
         "POST",
         "/wxaapi/feedback/media/get",
         false,
-        false,
+        true,
         EndpointPriority::Extended,
     ),
     item(
@@ -611,7 +611,7 @@ pub const ENDPOINT_INVENTORY: &[EndpointInventoryItem] = &[
         "POST",
         "/wxaapi/log/jserr_detail",
         false,
-        false,
+        true,
         EndpointPriority::Extended,
     ),
     item(
@@ -620,7 +620,7 @@ pub const ENDPOINT_INVENTORY: &[EndpointInventoryItem] = &[
         "POST",
         "/wxaapi/log/jserr_list",
         false,
-        false,
+        true,
         EndpointPriority::Extended,
     ),
     item(
@@ -629,7 +629,7 @@ pub const ENDPOINT_INVENTORY: &[EndpointInventoryItem] = &[
         "GET",
         "/wxa/getgrayreleaseplan",
         false,
-        false,
+        true,
         EndpointPriority::Extended,
     ),
     item(
@@ -638,7 +638,7 @@ pub const ENDPOINT_INVENTORY: &[EndpointInventoryItem] = &[
         "POST",
         "/wxa/plugin",
         false,
-        false,
+        true,
         EndpointPriority::Extended,
     ),
     item(
@@ -647,7 +647,7 @@ pub const ENDPOINT_INVENTORY: &[EndpointInventoryItem] = &[
         "POST",
         "/wxa/plugin",
         false,
-        false,
+        true,
         EndpointPriority::Extended,
     ),
     item(
@@ -656,7 +656,7 @@ pub const ENDPOINT_INVENTORY: &[EndpointInventoryItem] = &[
         "POST",
         "/wxa/addnearbypoi",
         false,
-        false,
+        true,
         EndpointPriority::Vertical,
     ),
     item(
@@ -665,7 +665,7 @@ pub const ENDPOINT_INVENTORY: &[EndpointInventoryItem] = &[
         "POST",
         "/wxa/delnearbypoi",
         false,
-        false,
+        true,
         EndpointPriority::Vertical,
     ),
     item(
@@ -674,7 +674,7 @@ pub const ENDPOINT_INVENTORY: &[EndpointInventoryItem] = &[
         "POST",
         "/wxa/getnearbypoilist",
         false,
-        false,
+        true,
         EndpointPriority::Vertical,
     ),
     item(
@@ -683,7 +683,7 @@ pub const ENDPOINT_INVENTORY: &[EndpointInventoryItem] = &[
         "POST",
         "/wxa/setnearbypoishowstatus",
         false,
-        false,
+        true,
         EndpointPriority::Vertical,
     ),
     item(
@@ -692,7 +692,7 @@ pub const ENDPOINT_INVENTORY: &[EndpointInventoryItem] = &[
         "POST",
         "/tcb/invokecloudfunction",
         false,
-        false,
+        true,
         EndpointPriority::Extended,
     ),
     item(
@@ -701,7 +701,7 @@ pub const ENDPOINT_INVENTORY: &[EndpointInventoryItem] = &[
         "POST",
         "/tcb/adddelayedfunctiontask",
         false,
-        false,
+        true,
         EndpointPriority::Vertical,
     ),
     item(
@@ -710,7 +710,7 @@ pub const ENDPOINT_INVENTORY: &[EndpointInventoryItem] = &[
         "POST",
         "/tcb/databaseadd",
         false,
-        false,
+        true,
         EndpointPriority::Extended,
     ),
     item(
@@ -719,7 +719,7 @@ pub const ENDPOINT_INVENTORY: &[EndpointInventoryItem] = &[
         "POST",
         "/tcb/databasedelete",
         false,
-        false,
+        true,
         EndpointPriority::Extended,
     ),
     item(
@@ -728,7 +728,7 @@ pub const ENDPOINT_INVENTORY: &[EndpointInventoryItem] = &[
         "POST",
         "/tcb/databaseupdate",
         false,
-        false,
+        true,
         EndpointPriority::Extended,
     ),
     item(
@@ -737,7 +737,7 @@ pub const ENDPOINT_INVENTORY: &[EndpointInventoryItem] = &[
         "POST",
         "/tcb/databasequery",
         false,
-        false,
+        true,
         EndpointPriority::Extended,
     ),
     item(
@@ -746,7 +746,7 @@ pub const ENDPOINT_INVENTORY: &[EndpointInventoryItem] = &[
         "POST",
         "/tcb/uploadfile",
         false,
-        false,
+        true,
         EndpointPriority::Extended,
     ),
     item(
@@ -755,7 +755,7 @@ pub const ENDPOINT_INVENTORY: &[EndpointInventoryItem] = &[
         "POST",
         "/tcb/batchdownloadfile",
         false,
-        false,
+        true,
         EndpointPriority::Extended,
     ),
     item(
@@ -764,7 +764,7 @@ pub const ENDPOINT_INVENTORY: &[EndpointInventoryItem] = &[
         "POST",
         "/tcb/batchdeletefile",
         false,
-        false,
+        true,
         EndpointPriority::Extended,
     ),
     item(
@@ -773,7 +773,7 @@ pub const ENDPOINT_INVENTORY: &[EndpointInventoryItem] = &[
         "POST",
         "/tcb/sendsms_v2",
         false,
-        false,
+        true,
         EndpointPriority::Vertical,
     ),
     item(
@@ -791,7 +791,7 @@ pub const ENDPOINT_INVENTORY: &[EndpointInventoryItem] = &[
         "POST",
         "/wxaapi/broadcast/room/create",
         false,
-        false,
+        true,
         EndpointPriority::Vertical,
     ),
     item(
@@ -800,7 +800,7 @@ pub const ENDPOINT_INVENTORY: &[EndpointInventoryItem] = &[
         "POST",
         "/wxaapi/broadcast/room/deleteroom",
         false,
-        false,
+        true,
         EndpointPriority::Vertical,
     ),
     item(
@@ -809,7 +809,7 @@ pub const ENDPOINT_INVENTORY: &[EndpointInventoryItem] = &[
         "POST",
         "/wxaapi/broadcast/room/editroom",
         false,
-        false,
+        true,
         EndpointPriority::Vertical,
     ),
     item(
@@ -818,7 +818,7 @@ pub const ENDPOINT_INVENTORY: &[EndpointInventoryItem] = &[
         "POST",
         "/wxa/business/getliveinfo",
         false,
-        false,
+        true,
         EndpointPriority::Vertical,
     ),
     item(
@@ -827,7 +827,7 @@ pub const ENDPOINT_INVENTORY: &[EndpointInventoryItem] = &[
         "POST",
         "/wxaapi/broadcast/goods/add",
         false,
-        false,
+        true,
         EndpointPriority::Vertical,
     ),
     item(
@@ -836,7 +836,7 @@ pub const ENDPOINT_INVENTORY: &[EndpointInventoryItem] = &[
         "POST",
         "/wxaapi/broadcast/goods/update",
         false,
-        false,
+        true,
         EndpointPriority::Vertical,
     ),
     item(
@@ -845,7 +845,7 @@ pub const ENDPOINT_INVENTORY: &[EndpointInventoryItem] = &[
         "POST",
         "/wxaapi/broadcast/goods/delete",
         false,
-        false,
+        true,
         EndpointPriority::Vertical,
     ),
     item(
@@ -854,7 +854,7 @@ pub const ENDPOINT_INVENTORY: &[EndpointInventoryItem] = &[
         "POST",
         "/wxaapi/broadcast/subscribe/send",
         false,
-        false,
+        true,
         EndpointPriority::Vertical,
     ),
     item(
@@ -863,7 +863,7 @@ pub const ENDPOINT_INVENTORY: &[EndpointInventoryItem] = &[
         "POST",
         "/wxaapi/broadcast/subscribe/get",
         false,
-        false,
+        true,
         EndpointPriority::Vertical,
     ),
     item(
@@ -872,7 +872,7 @@ pub const ENDPOINT_INVENTORY: &[EndpointInventoryItem] = &[
         "POST",
         "/cgi-bin/message/device/subscribe/send",
         false,
-        false,
+        true,
         EndpointPriority::Vertical,
     ),
     item(
@@ -881,7 +881,7 @@ pub const ENDPOINT_INVENTORY: &[EndpointInventoryItem] = &[
         "POST",
         "/wxa/business/hardware/sn_ticket/get",
         false,
-        false,
+        true,
         EndpointPriority::Vertical,
     ),
     item(
@@ -890,7 +890,7 @@ pub const ENDPOINT_INVENTORY: &[EndpointInventoryItem] = &[
         "POST",
         "/wxa/business/hardware/group/create",
         false,
-        false,
+        true,
         EndpointPriority::Vertical,
     ),
     item(
@@ -899,7 +899,7 @@ pub const ENDPOINT_INVENTORY: &[EndpointInventoryItem] = &[
         "POST",
         "/wxa/business/hardware/group/get",
         false,
-        false,
+        true,
         EndpointPriority::Vertical,
     ),
     item(
@@ -908,7 +908,7 @@ pub const ENDPOINT_INVENTORY: &[EndpointInventoryItem] = &[
         "POST",
         "/wxa/business/hardware/group/device/add",
         false,
-        false,
+        true,
         EndpointPriority::Vertical,
     ),
     item(
@@ -917,7 +917,7 @@ pub const ENDPOINT_INVENTORY: &[EndpointInventoryItem] = &[
         "POST",
         "/wxa/business/hardware/group/device/remove",
         false,
-        false,
+        true,
         EndpointPriority::Vertical,
     ),
     item(
@@ -926,7 +926,7 @@ pub const ENDPOINT_INVENTORY: &[EndpointInventoryItem] = &[
         "POST",
         "/cv/img/aicrop",
         false,
-        false,
+        true,
         EndpointPriority::Vertical,
     ),
     item(
@@ -935,7 +935,7 @@ pub const ENDPOINT_INVENTORY: &[EndpointInventoryItem] = &[
         "POST",
         "/cv/img/qrcode",
         false,
-        false,
+        true,
         EndpointPriority::Vertical,
     ),
     item(
@@ -944,7 +944,7 @@ pub const ENDPOINT_INVENTORY: &[EndpointInventoryItem] = &[
         "POST",
         "/cv/ocr/comm",
         false,
-        false,
+        true,
         EndpointPriority::Vertical,
     ),
     item(
@@ -953,7 +953,7 @@ pub const ENDPOINT_INVENTORY: &[EndpointInventoryItem] = &[
         "POST",
         "/cv/ocr/driving",
         false,
-        false,
+        true,
         EndpointPriority::Vertical,
     ),
     item(
@@ -962,7 +962,7 @@ pub const ENDPOINT_INVENTORY: &[EndpointInventoryItem] = &[
         "POST",
         "/cv/ocr/bankcard",
         false,
-        false,
+        true,
         EndpointPriority::Vertical,
     ),
     item(
@@ -971,7 +971,7 @@ pub const ENDPOINT_INVENTORY: &[EndpointInventoryItem] = &[
         "POST",
         "/cv/ocr/bizlicense",
         false,
-        false,
+        true,
         EndpointPriority::Vertical,
     ),
     item(
@@ -980,7 +980,7 @@ pub const ENDPOINT_INVENTORY: &[EndpointInventoryItem] = &[
         "POST",
         "/cv/ocr/drivinglicense",
         false,
-        false,
+        true,
         EndpointPriority::Vertical,
     ),
     item(
@@ -989,7 +989,7 @@ pub const ENDPOINT_INVENTORY: &[EndpointInventoryItem] = &[
         "POST",
         "/cv/ocr/idcard",
         false,
-        false,
+        true,
         EndpointPriority::Vertical,
     ),
     item(
@@ -998,7 +998,7 @@ pub const ENDPOINT_INVENTORY: &[EndpointInventoryItem] = &[
         "POST",
         "/cgi-bin/express/local/business/delivery/getall",
         false,
-        false,
+        true,
         EndpointPriority::Vertical,
     ),
     item(
@@ -1007,7 +1007,7 @@ pub const ENDPOINT_INVENTORY: &[EndpointInventoryItem] = &[
         "POST",
         "/cgi-bin/express/local/business/order/pre_add",
         false,
-        false,
+        true,
         EndpointPriority::Vertical,
     ),
     item(
@@ -1016,7 +1016,7 @@ pub const ENDPOINT_INVENTORY: &[EndpointInventoryItem] = &[
         "POST",
         "/cgi-bin/express/local/business/order/precancel",
         false,
-        false,
+        true,
         EndpointPriority::Vertical,
     ),
     item(
@@ -1025,7 +1025,7 @@ pub const ENDPOINT_INVENTORY: &[EndpointInventoryItem] = &[
         "POST",
         "/cgi-bin/express/local/business/order/add",
         false,
-        false,
+        true,
         EndpointPriority::Vertical,
     ),
     item(
@@ -1034,7 +1034,7 @@ pub const ENDPOINT_INVENTORY: &[EndpointInventoryItem] = &[
         "POST",
         "/cgi-bin/express/local/business/order/cancel",
         false,
-        false,
+        true,
         EndpointPriority::Vertical,
     ),
     item(
@@ -1043,7 +1043,7 @@ pub const ENDPOINT_INVENTORY: &[EndpointInventoryItem] = &[
         "POST",
         "/cgi-bin/express/business/account/bind",
         false,
-        false,
+        true,
         EndpointPriority::Vertical,
     ),
     item(
@@ -1052,7 +1052,7 @@ pub const ENDPOINT_INVENTORY: &[EndpointInventoryItem] = &[
         "POST",
         "/cgi-bin/express/business/account/getall",
         false,
-        false,
+        true,
         EndpointPriority::Vertical,
     ),
     item(
@@ -1061,7 +1061,7 @@ pub const ENDPOINT_INVENTORY: &[EndpointInventoryItem] = &[
         "POST",
         "/cgi-bin/express/business/delivery/getall",
         false,
-        false,
+        true,
         EndpointPriority::Vertical,
     ),
     item(
@@ -1070,7 +1070,7 @@ pub const ENDPOINT_INVENTORY: &[EndpointInventoryItem] = &[
         "POST",
         "/cgi-bin/express/business/order/get",
         false,
-        false,
+        true,
         EndpointPriority::Vertical,
     ),
     item(
@@ -1079,7 +1079,7 @@ pub const ENDPOINT_INVENTORY: &[EndpointInventoryItem] = &[
         "POST",
         "/cgi-bin/express/business/order/add",
         false,
-        false,
+        true,
         EndpointPriority::Vertical,
     ),
     item(
@@ -1088,7 +1088,7 @@ pub const ENDPOINT_INVENTORY: &[EndpointInventoryItem] = &[
         "POST",
         "/cgi-bin/express/business/path/get",
         false,
-        false,
+        true,
         EndpointPriority::Vertical,
     ),
     item(
@@ -1097,7 +1097,7 @@ pub const ENDPOINT_INVENTORY: &[EndpointInventoryItem] = &[
         "POST",
         "/wxa/servicemarket",
         false,
-        false,
+        true,
         EndpointPriority::Vertical,
     ),
     item(
@@ -1106,7 +1106,7 @@ pub const ENDPOINT_INVENTORY: &[EndpointInventoryItem] = &[
         "POST",
         "/cgi-bin/soter/verify_signature",
         false,
-        false,
+        true,
         EndpointPriority::Vertical,
     ),
     item(
@@ -1115,7 +1115,7 @@ pub const ENDPOINT_INVENTORY: &[EndpointInventoryItem] = &[
         "POST",
         "/cgi-bin/soter/mp/verify_id/get",
         false,
-        false,
+        true,
         EndpointPriority::Vertical,
     ),
     item(
@@ -1124,7 +1124,7 @@ pub const ENDPOINT_INVENTORY: &[EndpointInventoryItem] = &[
         "POST",
         "/cgi-bin/soter/mp/verify_result/get",
         false,
-        false,
+        true,
         EndpointPriority::Vertical,
     ),
     item(
@@ -1133,7 +1133,7 @@ pub const ENDPOINT_INVENTORY: &[EndpointInventoryItem] = &[
         "POST",
         "/wxa/search/wxaapi_submitpages",
         false,
-        false,
+        true,
         EndpointPriority::Vertical,
     ),
     item(
@@ -1142,7 +1142,7 @@ pub const ENDPOINT_INVENTORY: &[EndpointInventoryItem] = &[
         "POST",
         "/marketing/add_user_action",
         false,
-        false,
+        true,
         EndpointPriority::Vertical,
     ),
     item(
@@ -1151,7 +1151,7 @@ pub const ENDPOINT_INVENTORY: &[EndpointInventoryItem] = &[
         "POST",
         "/marketing/add_user_action_set",
         false,
-        false,
+        true,
         EndpointPriority::Vertical,
     ),
     item(
@@ -1160,7 +1160,7 @@ pub const ENDPOINT_INVENTORY: &[EndpointInventoryItem] = &[
         "POST",
         "/marketing/get_user_action_set_reports",
         false,
-        false,
+        true,
         EndpointPriority::Vertical,
     ),
     item(
@@ -1169,7 +1169,7 @@ pub const ENDPOINT_INVENTORY: &[EndpointInventoryItem] = &[
         "POST",
         "/marketing/get_user_action_sets",
         false,
-        false,
+        true,
         EndpointPriority::Vertical,
     ),
 ];

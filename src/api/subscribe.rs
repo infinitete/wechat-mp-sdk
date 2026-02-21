@@ -194,6 +194,84 @@ pub struct CategoryListResponse {
     errmsg: String,
 }
 
+#[non_exhaustive]
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct PubTemplateKeywordInfo {
+    #[serde(default)]
+    pub kid: i32,
+    #[serde(default)]
+    pub name: String,
+    #[serde(default)]
+    pub rule: String,
+}
+
+#[non_exhaustive]
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct PubTemplateKeywordResponse {
+    #[serde(default)]
+    pub data: Vec<PubTemplateKeywordInfo>,
+    #[serde(default)]
+    pub(crate) errcode: i32,
+    #[serde(default)]
+    pub(crate) errmsg: String,
+}
+
+#[non_exhaustive]
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct PubTemplateTitleInfo {
+    #[serde(default)]
+    pub tid: String,
+    #[serde(default)]
+    pub title: String,
+    #[serde(default)]
+    pub r#type: i32,
+    #[serde(default)]
+    pub category_id: i32,
+}
+
+#[non_exhaustive]
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct PubTemplateTitleListResponse {
+    #[serde(default)]
+    pub data: Vec<PubTemplateTitleInfo>,
+    #[serde(default)]
+    pub(crate) errcode: i32,
+    #[serde(default)]
+    pub(crate) errmsg: String,
+}
+
+#[non_exhaustive]
+#[derive(Debug, Clone, Serialize)]
+pub struct UserNotifyRequest {
+    #[serde(flatten)]
+    pub payload: HashMap<String, serde_json::Value>,
+}
+
+#[non_exhaustive]
+#[derive(Debug, Clone, Serialize)]
+pub struct UserNotifyExtRequest {
+    #[serde(flatten)]
+    pub payload: HashMap<String, serde_json::Value>,
+}
+
+#[non_exhaustive]
+#[derive(Debug, Clone, Serialize)]
+pub struct GetUserNotifyRequest {
+    #[serde(flatten)]
+    pub payload: HashMap<String, serde_json::Value>,
+}
+
+#[non_exhaustive]
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct UserNotifyResponse {
+    #[serde(default)]
+    pub(crate) errcode: i32,
+    #[serde(default)]
+    pub(crate) errmsg: String,
+    #[serde(flatten)]
+    pub extra: HashMap<String, serde_json::Value>,
+}
+
 /// Subscribe Message API
 ///
 /// Provides methods for sending subscribe messages and managing templates.
@@ -387,6 +465,88 @@ impl SubscribeApi {
 
         Ok(response.data)
     }
+
+    pub async fn get_pub_template_keywords_by_id(
+        &self,
+        tid: &str,
+    ) -> Result<PubTemplateKeywordResponse, WechatError> {
+        let access_token = self.context.token_manager.get_token().await?;
+        let path = "/wxaapi/newtmpl/getpubtemplatekeywords";
+        let query = [("access_token", access_token.as_str()), ("tid", tid)];
+
+        let response: PubTemplateKeywordResponse = self.context.client.get(path, &query).await?;
+
+        WechatError::check_api(response.errcode, &response.errmsg)?;
+
+        Ok(response)
+    }
+
+    pub async fn get_pub_template_title_list(
+        &self,
+        ids: &[i32],
+        start: i32,
+        limit: i32,
+    ) -> Result<PubTemplateTitleListResponse, WechatError> {
+        let access_token = self.context.token_manager.get_token().await?;
+        let path = "/wxaapi/newtmpl/getpubtemplatetitles";
+        let ids_text = ids
+            .iter()
+            .map(std::string::ToString::to_string)
+            .collect::<Vec<String>>()
+            .join(",");
+        let start_text = start.to_string();
+        let limit_text = limit.to_string();
+        let query = [
+            ("access_token", access_token.as_str()),
+            ("ids", ids_text.as_str()),
+            ("start", start_text.as_str()),
+            ("limit", limit_text.as_str()),
+        ];
+
+        let response: PubTemplateTitleListResponse = self.context.client.get(path, &query).await?;
+
+        WechatError::check_api(response.errcode, &response.errmsg)?;
+
+        Ok(response)
+    }
+
+    pub async fn set_user_notify(
+        &self,
+        request: &UserNotifyRequest,
+    ) -> Result<UserNotifyResponse, WechatError> {
+        self.post_user_notify("/cgi-bin/message/update_template_card", request)
+            .await
+    }
+
+    pub async fn set_user_notify_ext(
+        &self,
+        request: &UserNotifyExtRequest,
+    ) -> Result<UserNotifyResponse, WechatError> {
+        self.post_user_notify("/cgi-bin/message/update_template_card_ext", request)
+            .await
+    }
+
+    pub async fn get_user_notify(
+        &self,
+        request: &GetUserNotifyRequest,
+    ) -> Result<UserNotifyResponse, WechatError> {
+        self.post_user_notify("/cgi-bin/message/get_template_card", request)
+            .await
+    }
+
+    async fn post_user_notify<B: Serialize>(
+        &self,
+        endpoint: &str,
+        body: &B,
+    ) -> Result<UserNotifyResponse, WechatError> {
+        let access_token = self.context.token_manager.get_token().await?;
+        let path = format!("{}?access_token={}", endpoint, access_token);
+        let response: UserNotifyResponse = self.context.client.post(&path, body).await?;
+
+        WechatError::check_api(response.errcode, &response.errmsg)?;
+
+        Ok(response)
+    }
 }
 
 impl WechatApi for SubscribeApi {
@@ -460,6 +620,28 @@ mod tests {
         assert_eq!(options.touser.as_str(), "o6_bmjrPTlm6_2sgVt7hMZOPfL2M");
         assert_eq!(options.template_id, "template_id_456");
         assert_eq!(options.page, Some("pages/index/index".to_string()));
+    }
+
+    #[test]
+    fn test_pub_template_keywords_response_parse() {
+        let json = r#"{
+            "data": [{"kid": 1, "name": "thing1", "rule": "20个以内字符"}],
+            "errcode": 0,
+            "errmsg": "ok"
+        }"#;
+
+        let response: PubTemplateKeywordResponse = serde_json::from_str(json).unwrap();
+        assert_eq!(response.data.len(), 1);
+        assert_eq!(response.data[0].kid, 1);
+    }
+
+    #[test]
+    fn test_user_notify_response_parse() {
+        let json = r#"{"errcode": 0, "errmsg": "ok", "status": "success"}"#;
+
+        let response: UserNotifyResponse = serde_json::from_str(json).unwrap();
+        assert_eq!(response.errcode, 0);
+        assert_eq!(response.extra.get("status").unwrap(), "success");
     }
 
     #[tokio::test]
