@@ -72,9 +72,14 @@ pub use customer_service::{
 };
 pub use media::{MediaApi, MediaType, MediaUploadResponse};
 pub use r#trait::{WechatApi, WechatContext};
+pub use security::{
+    MediaCheckAsyncResponse, MsgSecCheckDetail, MsgSecCheckResponse, MsgSecCheckResult,
+    SecurityApi, UserRiskRankOptions, UserRiskRankResponse,
+};
 pub use subscribe::{
     AddTemplateResponse, CategoryInfo, CategoryListResponse, Lang, MiniProgramState, SubscribeApi,
     SubscribeMessageData, SubscribeMessageOptions, SubscribeMessageValue, TemplateInfo,
     TemplateListResponse,
 };
 pub use template::TemplateApi;
+pub use wechat_kf::{KfWorkBoundResponse, KfWorkInfo, WechatKfApi};

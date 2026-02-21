@@ -88,7 +88,42 @@ pub struct StableAccessTokenResponse {
     pub(crate) errmsg: String,
 }
 
-/// WeChat authentication API
+#[derive(Debug, Clone, Serialize)]
+struct CheckSessionKeyRequest {
+    openid: String,
+    signature: String,
+    sig_method: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+struct ResetUserSessionKeyRequest {
+    openid: String,
+    signature: String,
+    sig_method: String,
+}
+
+/// Response from resetUserSessionKey
+#[non_exhaustive]
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct ResetSessionKeyResponse {
+    #[serde(default)]
+    pub openid: String,
+    #[serde(default)]
+    pub session_key: String,
+    #[serde(default)]
+    pub(crate) errcode: i32,
+    #[serde(default)]
+    pub(crate) errmsg: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct BaseApiResponse {
+    #[serde(default)]
+    errcode: i32,
+    #[serde(default)]
+    errmsg: String,
+}
+
 pub struct AuthApi {
     context: Arc<WechatContext>,
 }
@@ -145,6 +180,48 @@ impl AuthApi {
             force_refresh,
         };
         let response: StableAccessTokenResponse = self.context.client.post(path, &body).await?;
+        WechatError::check_api(response.errcode, &response.errmsg)?;
+        Ok(response)
+    }
+
+    /// Check if a session key is still valid
+    ///
+    /// POST /wxa/checksession?access_token=ACCESS_TOKEN
+    pub async fn check_session_key(
+        &self,
+        openid: &str,
+        signature: &str,
+        sig_method: &str,
+    ) -> Result<(), WechatError> {
+        let access_token = self.context.token_manager.get_token().await?;
+        let path = format!("/wxa/checksession?access_token={}", access_token);
+        let body = CheckSessionKeyRequest {
+            openid: openid.to_string(),
+            signature: signature.to_string(),
+            sig_method: sig_method.to_string(),
+        };
+        let response: BaseApiResponse = self.context.client.post(&path, &body).await?;
+        WechatError::check_api(response.errcode, &response.errmsg)?;
+        Ok(())
+    }
+
+    /// Reset user session key
+    ///
+    /// POST /wxa/resetusersessionkey?access_token=ACCESS_TOKEN
+    pub async fn reset_user_session_key(
+        &self,
+        openid: &str,
+        signature: &str,
+        sig_method: &str,
+    ) -> Result<ResetSessionKeyResponse, WechatError> {
+        let access_token = self.context.token_manager.get_token().await?;
+        let path = format!("/wxa/resetusersessionkey?access_token={}", access_token);
+        let body = ResetUserSessionKeyRequest {
+            openid: openid.to_string(),
+            signature: signature.to_string(),
+            sig_method: sig_method.to_string(),
+        };
+        let response: ResetSessionKeyResponse = self.context.client.post(&path, &body).await?;
         WechatError::check_api(response.errcode, &response.errmsg)?;
         Ok(response)
     }
@@ -257,5 +334,28 @@ mod tests {
         let response: StableAccessTokenResponse = serde_json::from_str(json).unwrap();
         assert!(response.access_token.is_empty());
         assert_eq!(response.expires_in, 0);
+    }
+
+    #[test]
+    fn test_reset_session_key_response_parse() {
+        let json = r#"{
+            "openid": "oABC123xyz",
+            "session_key": "new_session_key_abc",
+            "errcode": 0,
+            "errmsg": "ok"
+        }"#;
+
+        let response: ResetSessionKeyResponse = serde_json::from_str(json).unwrap();
+        assert_eq!(response.openid, "oABC123xyz");
+        assert_eq!(response.session_key, "new_session_key_abc");
+        assert_eq!(response.errcode, 0);
+    }
+
+    #[test]
+    fn test_reset_session_key_response_defaults() {
+        let json = r#"{"errcode": 0, "errmsg": "ok"}"#;
+        let response: ResetSessionKeyResponse = serde_json::from_str(json).unwrap();
+        assert!(response.openid.is_empty());
+        assert!(response.session_key.is_empty());
     }
 }

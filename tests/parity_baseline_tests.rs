@@ -1001,6 +1001,28 @@ mod facade_guards {
         ("openapi.callbackCheck", "callback_check"),
         ("openapi.getApiDomainIp", "get_api_domain_ip"),
         ("openapi.getCallbackIp", "get_callback_ip"),
+        // Wave 2: Security
+        ("security.msgSecCheck", "msg_sec_check"),
+        ("security.mediaCheckAsync", "media_check_async"),
+        ("security.getUserRiskRank", "get_user_risk_rank"),
+        // Wave 2: Auth extensions
+        ("auth.checkSessionKey", "check_session_key"),
+        ("auth.resetUserSessionKey", "reset_user_session_key"),
+        // Wave 2: User extensions
+        ("user.getPluginOpenPId", "get_plugin_open_pid"),
+        ("user.checkEncryptedData", "check_encrypted_data"),
+        ("user.getPaidUnionid", "get_paid_unionid"),
+        ("user.getUserEncryptKey", "get_user_encrypt_key"),
+        // Wave 2: QR Code extensions
+        ("qrcode.queryScheme", "query_scheme"),
+        ("qrcode.queryUrlLink", "query_url_link"),
+        ("qrcode.generateNFCScheme", "generate_nfc_scheme"),
+        // Wave 2: Customer service extension
+        ("customerService.setTyping", "set_typing"),
+        // Wave 2: WeChat KF
+        ("kfWork.getKfWorkBound", "get_kf_work_bound"),
+        ("kfWork.bindKfWork", "bind_kf_work"),
+        ("kfWork.unbindKfWork", "unbind_kf_work"),
     ];
 
     /// Verifies that every currently-implemented endpoint in the inventory has
@@ -1125,6 +1147,23 @@ mod facade_guards {
             WechatMp::callback_check as *const (),
             WechatMp::get_api_domain_ip as *const (),
             WechatMp::get_callback_ip as *const (),
+            // Wave 2
+            WechatMp::msg_sec_check as *const (),
+            WechatMp::media_check_async as *const (),
+            WechatMp::get_user_risk_rank as *const (),
+            WechatMp::check_session_key as *const (),
+            WechatMp::reset_user_session_key as *const (),
+            WechatMp::get_plugin_open_pid as *const (),
+            WechatMp::check_encrypted_data as *const (),
+            WechatMp::get_paid_unionid as *const (),
+            WechatMp::get_user_encrypt_key as *const (),
+            WechatMp::query_scheme as *const (),
+            WechatMp::query_url_link as *const (),
+            WechatMp::generate_nfc_scheme as *const (),
+            WechatMp::set_typing as *const (),
+            WechatMp::get_kf_work_bound as *const (),
+            WechatMp::bind_kf_work as *const (),
+            WechatMp::unbind_kf_work as *const (),
         ];
 
         // Verify the sync method with a typed function pointer (no lifetime issues)

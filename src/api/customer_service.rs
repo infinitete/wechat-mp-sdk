@@ -161,13 +161,25 @@ struct CustomerServiceMessageRequest {
     msgtype: Message,
 }
 
-/// Response from customer service message API
 #[derive(Debug, Clone, Deserialize)]
 struct CustomerServiceMessageResponse {
     #[serde(default)]
     errcode: i32,
     #[serde(default)]
     errmsg: String,
+}
+
+/// Typing command for customer service
+#[derive(Debug, Clone, Serialize)]
+pub enum TypingCommand {
+    Typing,
+    CancelTyping,
+}
+
+#[derive(Debug, Clone, Serialize)]
+struct SetTypingRequest {
+    touser: String,
+    command: TypingCommand,
 }
 
 // ============================================================================
@@ -218,6 +230,29 @@ impl CustomerServiceApi {
 
         WechatError::check_api(response.errcode, &response.errmsg)?;
 
+        Ok(())
+    }
+
+    /// Set typing status for customer service
+    ///
+    /// POST /cgi-bin/message/custom/typing?access_token=ACCESS_TOKEN
+    pub async fn set_typing(
+        &self,
+        touser: &str,
+        command: TypingCommand,
+    ) -> Result<(), WechatError> {
+        let access_token = self.context.token_manager.get_token().await?;
+        let path = format!(
+            "/cgi-bin/message/custom/typing?access_token={}",
+            access_token
+        );
+        let request = SetTypingRequest {
+            touser: touser.to_string(),
+            command,
+        };
+        let response: CustomerServiceMessageResponse =
+            self.context.client.post(&path, &request).await?;
+        WechatError::check_api(response.errcode, &response.errmsg)?;
         Ok(())
     }
 }
@@ -339,6 +374,14 @@ mod tests {
         let context = create_test_context("http://localhost:0");
         let api = CustomerServiceApi::new(context);
         assert_eq!(api.api_name(), "customer_service");
+    }
+
+    #[test]
+    fn test_typing_command_serialization() {
+        let typing = serde_json::to_string(&TypingCommand::Typing).unwrap();
+        assert_eq!(typing, "\"Typing\"");
+        let cancel = serde_json::to_string(&TypingCommand::CancelTyping).unwrap();
+        assert_eq!(cancel, "\"CancelTyping\"");
     }
 
     #[tokio::test]

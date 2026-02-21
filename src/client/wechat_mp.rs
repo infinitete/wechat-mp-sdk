@@ -2,18 +2,26 @@
 
 use std::sync::Arc;
 
-use crate::api::auth::LoginResponse;
-use crate::api::auth::StableAccessTokenResponse;
+use crate::api::auth::{LoginResponse, ResetSessionKeyResponse, StableAccessTokenResponse};
+use crate::api::customer_service::TypingCommand;
 use crate::api::openapi::{
     ApiQuotaResponse, CallbackCheckResponse, IpListResponse, OpenApiApi, RidInfoResponse,
 };
 use crate::api::qrcode::{
-    QrcodeApi, QrcodeOptions, ShortLinkOptions, UnlimitQrcodeOptions, UrlLinkOptions,
-    UrlSchemeOptions,
+    NfcSchemeOptions, NfcSchemeResponse, QrcodeApi, QrcodeOptions, QuerySchemeResponse,
+    QueryUrlLinkResponse, ShortLinkOptions, UnlimitQrcodeOptions, UrlLinkOptions, UrlSchemeOptions,
+};
+use crate::api::security::{
+    MediaCheckAsyncResponse, MsgSecCheckResponse, SecurityApi, UserRiskRankOptions,
+    UserRiskRankResponse,
 };
 use crate::api::subscribe::SubscribeApi;
 use crate::api::template::TemplateApi;
-use crate::api::user::PhoneNumberResponse;
+use crate::api::user::{
+    CheckEncryptedDataResponse, PaidUnionIdResponse, PhoneNumberResponse, PluginOpenPIdResponse,
+    UserEncryptKeyResponse,
+};
+use crate::api::wechat_kf::{KfWorkBoundResponse, WechatKfApi};
 use crate::api::WechatContext;
 use crate::api::{
     CategoryInfo, MediaApi, MediaType, MediaUploadResponse, Message, SubscribeMessageOptions,
@@ -258,6 +266,168 @@ impl WechatMp {
     pub async fn get_callback_ip(&self) -> Result<IpListResponse, WechatError> {
         OpenApiApi::new(self.context.clone())
             .get_callback_ip()
+            .await
+    }
+
+    // Security API
+
+    pub async fn msg_sec_check(
+        &self,
+        openid: &str,
+        scene: u8,
+        content: &str,
+    ) -> Result<MsgSecCheckResponse, WechatError> {
+        SecurityApi::new(self.context.clone())
+            .msg_sec_check(openid, scene, content)
+            .await
+    }
+
+    pub async fn media_check_async(
+        &self,
+        media_url: &str,
+        media_type: u8,
+        openid: &str,
+        scene: u8,
+    ) -> Result<MediaCheckAsyncResponse, WechatError> {
+        SecurityApi::new(self.context.clone())
+            .media_check_async(media_url, media_type, openid, scene)
+            .await
+    }
+
+    pub async fn get_user_risk_rank(
+        &self,
+        openid: &str,
+        scene: u8,
+        options: Option<UserRiskRankOptions>,
+    ) -> Result<UserRiskRankResponse, WechatError> {
+        SecurityApi::new(self.context.clone())
+            .get_user_risk_rank(openid, scene, options)
+            .await
+    }
+
+    // Auth Extensions
+
+    pub async fn check_session_key(
+        &self,
+        openid: &str,
+        signature: &str,
+        sig_method: &str,
+    ) -> Result<(), WechatError> {
+        crate::api::auth::AuthApi::new(self.context.clone())
+            .check_session_key(openid, signature, sig_method)
+            .await
+    }
+
+    pub async fn reset_user_session_key(
+        &self,
+        openid: &str,
+        signature: &str,
+        sig_method: &str,
+    ) -> Result<ResetSessionKeyResponse, WechatError> {
+        crate::api::auth::AuthApi::new(self.context.clone())
+            .reset_user_session_key(openid, signature, sig_method)
+            .await
+    }
+
+    // User Extensions
+
+    pub async fn get_plugin_open_pid(
+        &self,
+        code: &str,
+    ) -> Result<PluginOpenPIdResponse, WechatError> {
+        crate::api::user::UserApi::new(self.context.clone())
+            .get_plugin_open_pid(code)
+            .await
+    }
+
+    pub async fn check_encrypted_data(
+        &self,
+        encrypted_msg_hash: &str,
+    ) -> Result<CheckEncryptedDataResponse, WechatError> {
+        crate::api::user::UserApi::new(self.context.clone())
+            .check_encrypted_data(encrypted_msg_hash)
+            .await
+    }
+
+    pub async fn get_paid_unionid(
+        &self,
+        openid: &str,
+        transaction_id: &str,
+    ) -> Result<PaidUnionIdResponse, WechatError> {
+        crate::api::user::UserApi::new(self.context.clone())
+            .get_paid_unionid(openid, transaction_id)
+            .await
+    }
+
+    pub async fn get_user_encrypt_key(
+        &self,
+        openid: &str,
+        signature: &str,
+        sig_method: &str,
+    ) -> Result<UserEncryptKeyResponse, WechatError> {
+        crate::api::user::UserApi::new(self.context.clone())
+            .get_user_encrypt_key(openid, signature, sig_method)
+            .await
+    }
+
+    // QR Code Extensions
+
+    pub async fn query_scheme(&self, scheme: &str) -> Result<QuerySchemeResponse, WechatError> {
+        QrcodeApi::new(self.context.clone())
+            .query_scheme(scheme)
+            .await
+    }
+
+    pub async fn query_url_link(
+        &self,
+        url_link: &str,
+    ) -> Result<QueryUrlLinkResponse, WechatError> {
+        QrcodeApi::new(self.context.clone())
+            .query_url_link(url_link)
+            .await
+    }
+
+    pub async fn generate_nfc_scheme(
+        &self,
+        options: NfcSchemeOptions,
+    ) -> Result<NfcSchemeResponse, WechatError> {
+        QrcodeApi::new(self.context.clone())
+            .generate_nfc_scheme(options)
+            .await
+    }
+
+    // Customer Service Extensions
+
+    pub async fn set_typing(
+        &self,
+        touser: &str,
+        command: TypingCommand,
+    ) -> Result<(), WechatError> {
+        crate::api::customer_service::CustomerServiceApi::new(self.context.clone())
+            .set_typing(touser, command)
+            .await
+    }
+
+    // WeChat KF API
+
+    pub async fn get_kf_work_bound(
+        &self,
+        openid: &str,
+    ) -> Result<KfWorkBoundResponse, WechatError> {
+        WechatKfApi::new(self.context.clone())
+            .get_kf_work_bound(openid)
+            .await
+    }
+
+    pub async fn bind_kf_work(&self, openid: &str, open_kfid: &str) -> Result<(), WechatError> {
+        WechatKfApi::new(self.context.clone())
+            .bind_kf_work(openid, open_kfid)
+            .await
+    }
+
+    pub async fn unbind_kf_work(&self, openid: &str, open_kfid: &str) -> Result<(), WechatError> {
+        WechatKfApi::new(self.context.clone())
+            .unbind_kf_work(openid, open_kfid)
             .await
     }
 

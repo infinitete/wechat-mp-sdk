@@ -125,7 +125,7 @@ pub const ENDPOINT_INVENTORY: &[EndpointInventoryItem] = &[
         "POST",
         "/wxa/checksession",
         false,
-        false,
+        true,
         EndpointPriority::Extended,
     ),
     item(
@@ -134,7 +134,7 @@ pub const ENDPOINT_INVENTORY: &[EndpointInventoryItem] = &[
         "POST",
         "/wxa/resetusersessionkey",
         false,
-        false,
+        true,
         EndpointPriority::Extended,
     ),
     item(
@@ -143,7 +143,7 @@ pub const ENDPOINT_INVENTORY: &[EndpointInventoryItem] = &[
         "POST",
         "/wxa/getpluginopenpid",
         false,
-        false,
+        true,
         EndpointPriority::Extended,
     ),
     item(
@@ -152,7 +152,7 @@ pub const ENDPOINT_INVENTORY: &[EndpointInventoryItem] = &[
         "POST",
         "/wxa/business/checkencryptedmsg",
         false,
-        false,
+        true,
         EndpointPriority::Extended,
     ),
     item(
@@ -161,7 +161,7 @@ pub const ENDPOINT_INVENTORY: &[EndpointInventoryItem] = &[
         "GET",
         "/wxa/getpaidunionid",
         false,
-        false,
+        true,
         EndpointPriority::Extended,
     ),
     item(
@@ -170,7 +170,7 @@ pub const ENDPOINT_INVENTORY: &[EndpointInventoryItem] = &[
         "POST",
         "/wxa/business/getuserencryptkey",
         false,
-        false,
+        true,
         EndpointPriority::Extended,
     ),
     item(
@@ -224,7 +224,7 @@ pub const ENDPOINT_INVENTORY: &[EndpointInventoryItem] = &[
         "POST",
         "/wxa/queryscheme",
         false,
-        false,
+        true,
         EndpointPriority::Extended,
     ),
     item(
@@ -233,7 +233,7 @@ pub const ENDPOINT_INVENTORY: &[EndpointInventoryItem] = &[
         "POST",
         "/wxa/generatenfcscheme",
         false,
-        false,
+        true,
         EndpointPriority::Vertical,
     ),
     item(
@@ -251,7 +251,7 @@ pub const ENDPOINT_INVENTORY: &[EndpointInventoryItem] = &[
         "POST",
         "/wxa/query_urllink",
         false,
-        false,
+        true,
         EndpointPriority::Extended,
     ),
     item(
@@ -278,7 +278,7 @@ pub const ENDPOINT_INVENTORY: &[EndpointInventoryItem] = &[
         "POST",
         "/cgi-bin/message/custom/typing",
         false,
-        false,
+        true,
         EndpointPriority::Extended,
     ),
     item(
@@ -305,7 +305,7 @@ pub const ENDPOINT_INVENTORY: &[EndpointInventoryItem] = &[
         "POST",
         "/cgi-bin/kfaccount/getbindedopenkfid",
         false,
-        false,
+        true,
         EndpointPriority::Vertical,
     ),
     item(
@@ -314,7 +314,7 @@ pub const ENDPOINT_INVENTORY: &[EndpointInventoryItem] = &[
         "POST",
         "/cgi-bin/kfaccount/bindopenkfid",
         false,
-        false,
+        true,
         EndpointPriority::Vertical,
     ),
     item(
@@ -323,7 +323,7 @@ pub const ENDPOINT_INVENTORY: &[EndpointInventoryItem] = &[
         "POST",
         "/cgi-bin/kfaccount/unbindopenkfid",
         false,
-        false,
+        true,
         EndpointPriority::Vertical,
     ),
     item(
@@ -422,7 +422,7 @@ pub const ENDPOINT_INVENTORY: &[EndpointInventoryItem] = &[
         "POST",
         "/wxa/msg_sec_check",
         false,
-        false,
+        true,
         EndpointPriority::Core,
     ),
     item(
@@ -431,7 +431,7 @@ pub const ENDPOINT_INVENTORY: &[EndpointInventoryItem] = &[
         "POST",
         "/wxa/media_check_async",
         false,
-        false,
+        true,
         EndpointPriority::Core,
     ),
     item(
@@ -440,7 +440,7 @@ pub const ENDPOINT_INVENTORY: &[EndpointInventoryItem] = &[
         "POST",
         "/wxa/getuserriskrank",
         false,
-        false,
+        true,
         EndpointPriority::Extended,
     ),
     item(

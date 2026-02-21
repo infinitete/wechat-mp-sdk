@@ -247,6 +247,63 @@ impl QrcodeApi {
         Ok(response.link)
     }
 
+    /// Query details of an existing URL Scheme
+    ///
+    /// POST /wxa/queryscheme?access_token=ACCESS_TOKEN
+    pub async fn query_scheme(&self, scheme: &str) -> Result<QuerySchemeResponse, WechatError> {
+        let access_token = self.context.token_manager.get_token().await?;
+        let path = format!("/wxa/queryscheme?access_token={}", access_token);
+
+        #[derive(Serialize)]
+        struct Request {
+            scheme: String,
+        }
+
+        let body = Request {
+            scheme: scheme.to_string(),
+        };
+        let response: QuerySchemeResponse = self.context.client.post(&path, &body).await?;
+        WechatError::check_api(response.errcode, &response.errmsg)?;
+        Ok(response)
+    }
+
+    /// Query details of an existing URL Link
+    ///
+    /// POST /wxa/query_urllink?access_token=ACCESS_TOKEN
+    pub async fn query_url_link(
+        &self,
+        url_link: &str,
+    ) -> Result<QueryUrlLinkResponse, WechatError> {
+        let access_token = self.context.token_manager.get_token().await?;
+        let path = format!("/wxa/query_urllink?access_token={}", access_token);
+
+        #[derive(Serialize)]
+        struct Request {
+            url_link: String,
+        }
+
+        let body = Request {
+            url_link: url_link.to_string(),
+        };
+        let response: QueryUrlLinkResponse = self.context.client.post(&path, &body).await?;
+        WechatError::check_api(response.errcode, &response.errmsg)?;
+        Ok(response)
+    }
+
+    /// Generate an NFC Scheme for opening the Mini Program via NFC
+    ///
+    /// POST /wxa/generatenfcscheme?access_token=ACCESS_TOKEN
+    pub async fn generate_nfc_scheme(
+        &self,
+        options: NfcSchemeOptions,
+    ) -> Result<NfcSchemeResponse, WechatError> {
+        let access_token = self.context.token_manager.get_token().await?;
+        let path = format!("/wxa/generatenfcscheme?access_token={}", access_token);
+        let response: NfcSchemeResponse = self.context.client.post(&path, &options).await?;
+        WechatError::check_api(response.errcode, &response.errmsg)?;
+        Ok(response)
+    }
+
     async fn get_image_bytes<T: Serialize>(
         &self,
         path: &str,
@@ -291,6 +348,123 @@ struct ErrorResponse {
     errmsg: String,
 }
 
+/// Scheme info from queryScheme
+#[non_exhaustive]
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+pub struct SchemeInfo {
+    #[serde(default)]
+    pub appid: String,
+    #[serde(default)]
+    pub path: String,
+    #[serde(default)]
+    pub query: String,
+    #[serde(default)]
+    pub create_time: i64,
+    #[serde(default)]
+    pub expire_time: i64,
+    #[serde(default)]
+    pub env_version: String,
+}
+
+/// Scheme quota info
+#[non_exhaustive]
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+pub struct SchemeQuota {
+    #[serde(default)]
+    pub long_time_used: i64,
+    #[serde(default)]
+    pub long_time_limit: i64,
+}
+
+/// Response from queryScheme
+#[non_exhaustive]
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct QuerySchemeResponse {
+    #[serde(default)]
+    pub scheme_info: SchemeInfo,
+    #[serde(default)]
+    pub scheme_quota: SchemeQuota,
+    #[serde(default)]
+    pub(crate) errcode: i32,
+    #[serde(default)]
+    pub(crate) errmsg: String,
+}
+
+/// URL Link info from queryUrlLink
+#[non_exhaustive]
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+pub struct UrlLinkInfo {
+    #[serde(default)]
+    pub appid: String,
+    #[serde(default)]
+    pub path: String,
+    #[serde(default)]
+    pub query: String,
+    #[serde(default)]
+    pub create_time: i64,
+    #[serde(default)]
+    pub expire_time: i64,
+    #[serde(default)]
+    pub env_version: String,
+}
+
+/// URL Link quota info
+#[non_exhaustive]
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+pub struct UrlLinkQuota {
+    #[serde(default)]
+    pub long_time_used: i64,
+    #[serde(default)]
+    pub long_time_limit: i64,
+}
+
+/// Response from queryUrlLink
+#[non_exhaustive]
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct QueryUrlLinkResponse {
+    #[serde(default)]
+    pub url_link_info: UrlLinkInfo,
+    #[serde(default)]
+    pub url_link_quota: UrlLinkQuota,
+    #[serde(default)]
+    pub(crate) errcode: i32,
+    #[serde(default)]
+    pub(crate) errmsg: String,
+}
+
+/// Jump target for NFC Scheme
+#[derive(Debug, Clone, Serialize)]
+pub struct NfcSchemeJumpWxa {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub path: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub query: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub env_version: Option<String>,
+}
+
+/// Options for generating NFC Scheme
+#[derive(Debug, Clone, Serialize)]
+pub struct NfcSchemeOptions {
+    pub jump_wxa: NfcSchemeJumpWxa,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub model_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sn: Option<String>,
+}
+
+/// Response from generateNFCScheme
+#[non_exhaustive]
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct NfcSchemeResponse {
+    #[serde(default)]
+    pub openlink: String,
+    #[serde(default)]
+    pub(crate) errcode: i32,
+    #[serde(default)]
+    pub(crate) errmsg: String,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -319,5 +493,70 @@ mod tests {
             is_hyaline: None,
         };
         assert_eq!(options.scene, "abc");
+    }
+
+    #[test]
+    fn test_query_scheme_response_parse() {
+        let json = r#"{
+            "scheme_info": {
+                "appid": "wx1234567890abcdef",
+                "path": "/pages/index",
+                "query": "id=123",
+                "create_time": 1700000000,
+                "expire_time": 1700100000,
+                "env_version": "release"
+            },
+            "scheme_quota": {
+                "long_time_used": 5,
+                "long_time_limit": 100
+            },
+            "errcode": 0,
+            "errmsg": "ok"
+        }"#;
+        let response: QuerySchemeResponse = serde_json::from_str(json).unwrap();
+        assert_eq!(response.scheme_info.appid, "wx1234567890abcdef");
+        assert_eq!(response.scheme_info.path, "/pages/index");
+        assert_eq!(response.scheme_quota.long_time_used, 5);
+        assert_eq!(response.errcode, 0);
+    }
+
+    #[test]
+    fn test_query_url_link_response_parse() {
+        let json = r#"{
+            "url_link_info": {
+                "appid": "wx1234567890abcdef",
+                "path": "/pages/index",
+                "query": "",
+                "create_time": 1700000000,
+                "expire_time": 1700100000,
+                "env_version": "release"
+            },
+            "url_link_quota": {
+                "long_time_used": 2,
+                "long_time_limit": 100
+            },
+            "errcode": 0,
+            "errmsg": "ok"
+        }"#;
+        let response: QueryUrlLinkResponse = serde_json::from_str(json).unwrap();
+        assert_eq!(response.url_link_info.appid, "wx1234567890abcdef");
+        assert_eq!(response.url_link_quota.long_time_used, 2);
+    }
+
+    #[test]
+    fn test_nfc_scheme_response_parse() {
+        let json =
+            r#"{"openlink": "weixin://dl/business/?t=NFC123", "errcode": 0, "errmsg": "ok"}"#;
+        let response: NfcSchemeResponse = serde_json::from_str(json).unwrap();
+        assert_eq!(response.openlink, "weixin://dl/business/?t=NFC123");
+        assert_eq!(response.errcode, 0);
+    }
+
+    #[test]
+    fn test_query_scheme_response_defaults() {
+        let json = r#"{"errcode": 0, "errmsg": "ok"}"#;
+        let response: QuerySchemeResponse = serde_json::from_str(json).unwrap();
+        assert!(response.scheme_info.appid.is_empty());
+        assert_eq!(response.scheme_quota.long_time_used, 0);
     }
 }

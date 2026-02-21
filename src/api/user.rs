@@ -110,13 +110,95 @@ impl PhoneNumberResponse {
     }
 }
 
-/// Request for getPhoneNumber API
 #[derive(Debug, Serialize)]
 struct PhoneNumberRequest {
     code: String,
 }
 
-/// User API for retrieving user information
+#[derive(Debug, Serialize)]
+struct PluginOpenPIdRequest {
+    code: String,
+}
+
+#[derive(Debug, Serialize)]
+struct CheckEncryptedDataRequest {
+    encrypted_msg_hash: String,
+}
+
+#[derive(Debug, Serialize)]
+struct UserEncryptKeyRequest {
+    openid: String,
+    signature: String,
+    sig_method: String,
+}
+
+/// Response from getPluginOpenPId
+#[non_exhaustive]
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct PluginOpenPIdResponse {
+    #[serde(default)]
+    pub openpid: String,
+    #[serde(default)]
+    pub(crate) errcode: i32,
+    #[serde(default)]
+    pub(crate) errmsg: String,
+}
+
+/// Response from checkEncryptedData
+///
+/// Note: WeChat API returns "vaild" (typo), not "valid"
+#[non_exhaustive]
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct CheckEncryptedDataResponse {
+    /// Whether the encrypted data is valid (WeChat uses "vaild" in their API)
+    #[serde(default)]
+    pub vaild: bool,
+    #[serde(default)]
+    pub(crate) errcode: i32,
+    #[serde(default)]
+    pub(crate) errmsg: String,
+}
+
+/// Response from getPaidUnionid
+#[non_exhaustive]
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct PaidUnionIdResponse {
+    #[serde(default)]
+    pub unionid: String,
+    #[serde(default)]
+    pub(crate) errcode: i32,
+    #[serde(default)]
+    pub(crate) errmsg: String,
+}
+
+/// Encrypt key info entry
+#[non_exhaustive]
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+pub struct EncryptKeyInfo {
+    #[serde(default)]
+    pub encrypt_key: String,
+    #[serde(default)]
+    pub version: i32,
+    #[serde(default)]
+    pub expire_in: i64,
+    #[serde(default)]
+    pub iv: String,
+    #[serde(default)]
+    pub create_time: i64,
+}
+
+/// Response from getUserEncryptKey
+#[non_exhaustive]
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct UserEncryptKeyResponse {
+    #[serde(default)]
+    pub key_info_list: Vec<EncryptKeyInfo>,
+    #[serde(default)]
+    pub(crate) errcode: i32,
+    #[serde(default)]
+    pub(crate) errmsg: String,
+}
+
 pub struct UserApi {
     context: Arc<WechatContext>,
 }
@@ -152,6 +234,87 @@ impl UserApi {
 
         WechatError::check_api(response.errcode, &response.errmsg)?;
 
+        Ok(response)
+    }
+
+    /// Get plugin user's OpenPId
+    ///
+    /// POST /wxa/getpluginopenpid?access_token=ACCESS_TOKEN
+    pub async fn get_plugin_open_pid(
+        &self,
+        code: &str,
+    ) -> Result<PluginOpenPIdResponse, WechatError> {
+        let access_token = self.context.token_manager.get_token().await?;
+        let path = format!("/wxa/getpluginopenpid?access_token={}", access_token);
+        let body = PluginOpenPIdRequest {
+            code: code.to_string(),
+        };
+        let response: PluginOpenPIdResponse = self.context.client.post(&path, &body).await?;
+        WechatError::check_api(response.errcode, &response.errmsg)?;
+        Ok(response)
+    }
+
+    /// Check if encrypted data has been tampered with
+    ///
+    /// POST /wxa/business/checkencryptedmsg?access_token=ACCESS_TOKEN
+    pub async fn check_encrypted_data(
+        &self,
+        encrypted_msg_hash: &str,
+    ) -> Result<CheckEncryptedDataResponse, WechatError> {
+        let access_token = self.context.token_manager.get_token().await?;
+        let path = format!(
+            "/wxa/business/checkencryptedmsg?access_token={}",
+            access_token
+        );
+        let body = CheckEncryptedDataRequest {
+            encrypted_msg_hash: encrypted_msg_hash.to_string(),
+        };
+        let response: CheckEncryptedDataResponse = self.context.client.post(&path, &body).await?;
+        WechatError::check_api(response.errcode, &response.errmsg)?;
+        Ok(response)
+    }
+
+    /// Get unionid for a user who has made a payment
+    ///
+    /// GET /wxa/getpaidunionid?access_token=ACCESS_TOKEN
+    pub async fn get_paid_unionid(
+        &self,
+        openid: &str,
+        transaction_id: &str,
+    ) -> Result<PaidUnionIdResponse, WechatError> {
+        let access_token = self.context.token_manager.get_token().await?;
+        let path = "/wxa/getpaidunionid";
+        let query = [
+            ("access_token", access_token.as_str()),
+            ("openid", openid),
+            ("transaction_id", transaction_id),
+        ];
+        let response: PaidUnionIdResponse = self.context.client.get(path, &query).await?;
+        WechatError::check_api(response.errcode, &response.errmsg)?;
+        Ok(response)
+    }
+
+    /// Get user's encrypt key for encrypted data
+    ///
+    /// POST /wxa/business/getuserencryptkey?access_token=ACCESS_TOKEN
+    pub async fn get_user_encrypt_key(
+        &self,
+        openid: &str,
+        signature: &str,
+        sig_method: &str,
+    ) -> Result<UserEncryptKeyResponse, WechatError> {
+        let access_token = self.context.token_manager.get_token().await?;
+        let path = format!(
+            "/wxa/business/getuserencryptkey?access_token={}",
+            access_token
+        );
+        let body = UserEncryptKeyRequest {
+            openid: openid.to_string(),
+            signature: signature.to_string(),
+            sig_method: sig_method.to_string(),
+        };
+        let response: UserEncryptKeyResponse = self.context.client.post(&path, &body).await?;
+        WechatError::check_api(response.errcode, &response.errmsg)?;
         Ok(response)
     }
 }
@@ -253,5 +416,57 @@ mod tests {
         let response: PhoneNumberResponse = serde_json::from_str(json).unwrap();
         assert_eq!(response.errcode, 40001);
         assert_eq!(response.errmsg, "invalid credential");
+    }
+
+    #[test]
+    fn test_plugin_open_pid_response_parse() {
+        let json = r#"{"openpid": "openpid_abc123", "errcode": 0, "errmsg": "ok"}"#;
+        let response: PluginOpenPIdResponse = serde_json::from_str(json).unwrap();
+        assert_eq!(response.openpid, "openpid_abc123");
+        assert_eq!(response.errcode, 0);
+    }
+
+    #[test]
+    fn test_check_encrypted_data_response_parse() {
+        let json = r#"{"vaild": true, "errcode": 0, "errmsg": "ok"}"#;
+        let response: CheckEncryptedDataResponse = serde_json::from_str(json).unwrap();
+        assert!(response.vaild);
+        assert_eq!(response.errcode, 0);
+    }
+
+    #[test]
+    fn test_paid_unionid_response_parse() {
+        let json = r#"{"unionid": "union_abc123", "errcode": 0, "errmsg": "ok"}"#;
+        let response: PaidUnionIdResponse = serde_json::from_str(json).unwrap();
+        assert_eq!(response.unionid, "union_abc123");
+    }
+
+    #[test]
+    fn test_user_encrypt_key_response_parse() {
+        let json = r#"{
+            "key_info_list": [
+                {
+                    "encrypt_key": "key123",
+                    "version": 1,
+                    "expire_in": 3600,
+                    "iv": "iv123",
+                    "create_time": 1700000000
+                }
+            ],
+            "errcode": 0,
+            "errmsg": "ok"
+        }"#;
+        let response: UserEncryptKeyResponse = serde_json::from_str(json).unwrap();
+        assert_eq!(response.key_info_list.len(), 1);
+        assert_eq!(response.key_info_list[0].encrypt_key, "key123");
+        assert_eq!(response.key_info_list[0].version, 1);
+        assert_eq!(response.key_info_list[0].expire_in, 3600);
+    }
+
+    #[test]
+    fn test_user_encrypt_key_response_defaults() {
+        let json = r#"{"errcode": 0, "errmsg": "ok"}"#;
+        let response: UserEncryptKeyResponse = serde_json::from_str(json).unwrap();
+        assert!(response.key_info_list.is_empty());
     }
 }
