@@ -2,6 +2,7 @@
 //!
 //! This module contains submodules for various WeChat Mini Program APIs:
 //!
+//! - [`common`] - Shared response primitives, pagination, and date range types
 //! - [`auth`] - Login authentication (code2Session)
 //! - [`customer_service`] - Customer service messages
 //! - [`media`] - Temporary media upload and download
@@ -17,7 +18,9 @@
 //! ```
 
 pub mod auth;
+pub mod common;
 pub mod customer_service;
+pub mod endpoint_inventory;
 pub mod media;
 pub mod qrcode;
 pub mod subscribe;
@@ -25,6 +28,9 @@ pub mod template;
 pub mod r#trait;
 pub mod user;
 
+pub use common::{
+    ApiResponseBase, DateRangeRequest, PaginatedRequest, PaginatedResponse, WechatApiResponse,
+};
 pub use customer_service::{
     CustomerServiceApi, LinkMessage, MediaMessage, Message, MiniProgramPageMessage, TextMessage,
 };

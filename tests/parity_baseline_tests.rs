@@ -793,3 +793,82 @@ mod parity_summary {
     //! proceed by having `WechatMp` delegate to the `api/*` modules.
     //! This test suite serves as the regression guard.
 }
+
+mod inventory_baseline {
+    use std::collections::{HashMap, HashSet};
+
+    use wechat_mp_sdk::api::endpoint_inventory::get_endpoint_inventory;
+
+    #[test]
+    fn inventory_has_no_duplicate_ids() {
+        let mut seen = HashSet::new();
+
+        for item in get_endpoint_inventory() {
+            assert!(
+                seen.insert(item.endpoint_id),
+                "duplicate endpoint_id detected: {}",
+                item.endpoint_id
+            );
+        }
+    }
+
+    #[test]
+    fn inventory_has_no_empty_categories() {
+        let mut category_counts: HashMap<&str, usize> = HashMap::new();
+
+        for item in get_endpoint_inventory() {
+            *category_counts.entry(item.category).or_insert(0) += 1;
+        }
+
+        assert!(
+            !category_counts.is_empty(),
+            "inventory categories must not be empty"
+        );
+
+        for (category, count) in category_counts {
+            assert!(
+                count > 0,
+                "category {} must have at least one endpoint",
+                category
+            );
+        }
+    }
+
+    #[test]
+    fn inventory_is_consistent() {
+        let inventory = get_endpoint_inventory();
+        assert!(!inventory.is_empty(), "inventory must not be empty");
+
+        for item in inventory {
+            assert!(
+                !item.category.trim().is_empty(),
+                "category must not be empty for {}",
+                item.endpoint_id
+            );
+            assert!(
+                !item.endpoint_id.trim().is_empty(),
+                "endpoint_id must not be empty"
+            );
+            assert!(
+                !item.http_method.trim().is_empty(),
+                "http_method must not be empty for {}",
+                item.endpoint_id
+            );
+            assert!(
+                item.http_method == "GET" || item.http_method == "POST",
+                "http_method must be GET or POST for {}",
+                item.endpoint_id
+            );
+            assert!(
+                !item.path.trim().is_empty(),
+                "path must not be empty for {}",
+                item.endpoint_id
+            );
+            assert!(
+                item.path.starts_with('/'),
+                "path must start with '/' for {}",
+                item.endpoint_id
+            );
+        }
+    }
+}

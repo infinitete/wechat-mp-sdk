@@ -558,3 +558,123 @@ async fn test_http_post_decode_error_should_return_http_decode_error() {
         result
     );
 }
+
+// ============================================================
+// Shared model serialization/deserialization contract tests
+// ============================================================
+
+use wechat_mp_sdk::api::common::{
+    ApiResponseBase, DateRangeRequest, PaginatedRequest, PaginatedResponse, WechatApiResponse,
+};
+
+#[test]
+fn test_wechat_api_response_parses_success() {
+    let json = r#"{"errcode": 0, "errmsg": "ok"}"#;
+    let resp: ApiResponseBase = serde_json::from_str(json).unwrap();
+    assert_eq!(resp.errcode, 0);
+    assert_eq!(resp.errmsg, "ok");
+    assert!(resp.is_success());
+    assert!(resp.check().is_ok());
+}
+
+#[test]
+fn test_wechat_api_response_parses_error() {
+    let json = r#"{"errcode": 40013, "errmsg": "invalid appid"}"#;
+    let resp: ApiResponseBase = serde_json::from_str(json).unwrap();
+    assert_eq!(resp.errcode, 40013);
+    assert_eq!(resp.errmsg, "invalid appid");
+    assert!(!resp.is_success());
+    let err = resp.check().unwrap_err();
+    match err {
+        WechatError::Api { code, message } => {
+            assert_eq!(code, 40013);
+            assert_eq!(message, "invalid appid");
+        }
+        other => panic!("Expected WechatError::Api, got: {:?}", other),
+    }
+}
+
+#[test]
+fn test_paginated_response_parses_correctly() {
+    #[derive(serde::Deserialize, Debug)]
+    struct TestItem {
+        id: u32,
+        name: String,
+    }
+
+    let json = r#"{
+        "total_count": 50,
+        "list": [
+            {"id": 1, "name": "alpha"},
+            {"id": 2, "name": "beta"},
+            {"id": 3, "name": "gamma"}
+        ],
+        "errcode": 0,
+        "errmsg": "ok"
+    }"#;
+
+    let resp: PaginatedResponse<TestItem> = serde_json::from_str(json).unwrap();
+    assert_eq!(resp.total_count, 50);
+    assert_eq!(resp.list.len(), 3);
+    assert_eq!(resp.list[0].id, 1);
+    assert_eq!(resp.list[0].name, "alpha");
+    assert_eq!(resp.list[2].id, 3);
+    assert_eq!(resp.list[2].name, "gamma");
+    assert!(resp.is_success());
+    assert!(resp.check().is_ok());
+}
+
+#[test]
+fn test_malformed_payload_returns_decode_error() {
+    let malformed_json = "{ not valid json }";
+    let result = serde_json::from_str::<ApiResponseBase>(malformed_json);
+    assert!(result.is_err(), "Expected decode error for malformed JSON");
+}
+
+#[test]
+fn test_paginated_response_error_with_no_list() {
+    #[derive(serde::Deserialize, Debug)]
+    struct TestItem {
+        #[allow(dead_code)]
+        name: String,
+    }
+
+    let json = r#"{"errcode": 40001, "errmsg": "invalid credential"}"#;
+    let resp: PaginatedResponse<TestItem> = serde_json::from_str(json).unwrap();
+    assert!(!resp.is_success());
+    assert!(resp.list.is_empty());
+    assert_eq!(resp.total_count, 0);
+    assert!(resp.check().is_err());
+}
+
+#[test]
+fn test_paginated_request_serializes_correctly() {
+    let req = PaginatedRequest::new(10, 20);
+    let json = serde_json::to_value(&req).unwrap();
+    assert_eq!(json["offset"], 10);
+    assert_eq!(json["count"], 20);
+}
+
+#[test]
+fn test_date_range_request_serializes_correctly() {
+    let req = DateRangeRequest::new("20240101", "20240131");
+    let json = serde_json::to_value(&req).unwrap();
+    assert_eq!(json["begin_date"], "20240101");
+    assert_eq!(json["end_date"], "20240131");
+}
+
+#[test]
+fn test_api_response_base_extra_fields_ignored() {
+    let json = r#"{"errcode": 0, "errmsg": "ok", "extra": "ignored"}"#;
+    let resp: ApiResponseBase = serde_json::from_str(json).unwrap();
+    assert!(resp.is_success());
+}
+
+#[test]
+fn test_api_response_base_missing_fields_default() {
+    let json = r#"{}"#;
+    let resp: ApiResponseBase = serde_json::from_str(json).unwrap();
+    assert_eq!(resp.errcode, 0);
+    assert!(resp.errmsg.is_empty());
+    assert!(resp.is_success());
+}
