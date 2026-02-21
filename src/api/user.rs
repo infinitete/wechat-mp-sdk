@@ -4,6 +4,8 @@ use crate::client::WechatClient;
 use crate::error::WechatError;
 use crate::token::TokenManager;
 
+pub use crate::types::Watermark;
+
 /// User information from WeChat
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct UserInfo {
@@ -28,15 +30,6 @@ pub struct UserInfo {
     /// Language
     #[serde(default)]
     pub language: Option<String>,
-}
-
-/// Watermark in encrypted data
-#[derive(Debug, Clone, Deserialize)]
-pub struct Watermark {
-    /// Timestamp
-    pub timestamp: i64,
-    /// AppID
-    pub appid: String,
 }
 
 /// Phone number information from getPhoneNumber API
@@ -82,17 +75,6 @@ impl UserApi {
         Self { client }
     }
 
-    /// Get user info from encrypted data
-    ///
-    /// Note: The actual decryption is handled by the crypto module.
-    /// This struct represents the user info after decryption.
-    ///
-    /// The encrypted data should be decrypted using the crypto::decrypt_user_data
-    /// function with the session_key, then parsed as UserInfo.
-    pub fn get_user_info(&self) -> UserApiBuilder {
-        UserApiBuilder
-    }
-
     /// Get user's phone number
     ///
     /// Calls the getPhoneNumber API with the code obtained from the client.
@@ -129,16 +111,5 @@ impl UserApi {
         }
 
         Ok(response)
-    }
-}
-
-/// Builder for user API operations
-pub struct UserApiBuilder;
-
-impl UserApiBuilder {
-    /// Parse user info from decrypted JSON data
-    pub fn parse_user_info(json_data: &str) -> Result<UserInfo, WechatError> {
-        let user_info: UserInfo = serde_json::from_str(json_data)?;
-        Ok(user_info)
     }
 }

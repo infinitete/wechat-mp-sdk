@@ -1,0 +1,22 @@
+#!/bin/sh
+
+# Pre-commit hook for Rust code quality checks
+# This hook runs before every commit to ensure code quality
+
+set -e
+
+echo "Running pre-commit checks..."
+
+# 1. Format check
+echo "Checking code formatting..."
+cargo fmt --check
+
+# 2. Clippy linting
+echo "Running clippy lints..."
+cargo clippy --all-targets --all-features -- -D warnings
+
+# 3. Run tests
+echo "Running tests..."
+cargo test --quiet
+
+echo "All pre-commit checks passed!"

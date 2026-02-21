@@ -7,6 +7,7 @@ use cbc::cipher::block_padding::Pkcs7;
 use cbc::Decryptor;
 
 use crate::error::WechatError;
+use crate::types::Watermark;
 
 type Aes128CbcDecryptor = Decryptor<Aes128>;
 
@@ -21,16 +22,7 @@ pub struct DecryptedUserData {
     pub watermark: Watermark,
 }
 
-/// Watermark from decrypted data
-#[derive(Debug, Clone, serde::Deserialize)]
-pub struct Watermark {
-    /// Timestamp when data was encrypted
-    pub timestamp: i64,
-    /// AppID that encrypted the data
-    pub appid: String,
-}
-
-/// Decrypt WeChat encrypted user data
+/// Decrypt WeChat encrypted user data.
 ///
 /// WeChat encrypts sensitive user data using AES-128-CBC with:
 /// - Key: session_key (base64 decoded, 16 bytes)
@@ -43,7 +35,14 @@ pub struct Watermark {
 /// * `iv` - Base64 encoded IV from client
 ///
 /// # Returns
-/// Decrypted user data parsed as JSON
+/// Decrypted user data containing the user's information.
+///
+/// # Errors
+/// Returns [`WechatError::Crypto`] if:
+/// - Invalid base64 encoding
+/// - Invalid key or IV length
+/// - Decryption fails
+/// - Parsed data is not valid JSON
 pub fn decrypt_user_data(
     session_key: &str,
     encrypted_data: &str,
@@ -97,7 +96,17 @@ pub fn decrypt_user_data(
     Ok(user_data)
 }
 
-/// Verify watermark appid matches expected appid
+/// Verify watermark appid matches expected appid.
+///
+/// This should be called after decryption to ensure the data came from
+/// the correct Mini Program (prevents attacks using data from other apps).
+///
+/// # Arguments
+/// * `data` - Decrypted user data containing watermark
+/// * `expected_appid` - Your Mini Program's appid
+///
+/// # Errors
+/// Returns [`WechatError::Signature`] if the watermark appid does not match.
 pub fn verify_watermark(data: &DecryptedUserData, expected_appid: &str) -> Result<(), WechatError> {
     if data.watermark.appid != expected_appid {
         return Err(WechatError::Signature(format!(

@@ -218,23 +218,53 @@ impl MessageApi {
     /// * `media_type` - Type of media (image, voice, video, thumb)
     /// * `filename` - Name of the file
     /// * `data` - File content as bytes
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// use wechat_mp_sdk::api::message::{MessageApi, MediaType};
+    /// use wechat_mp_sdk::token::TokenManager;
+    ///
+    /// let api = MessageApi::new(client);
+    /// let image_data = std::fs::read("image.jpg")?;
+    /// let response = api.upload_temp_media(
+    ///     &token_manager,
+    ///     MediaType::Image,
+    ///     "image.jpg",
+    ///     &image_data
+    /// ).await?;
+    /// println!("Media ID: {}", response.media_id);
+    /// ```
     pub async fn upload_temp_media(
         &self,
         token_manager: &TokenManager,
         media_type: MediaType,
-        _filename: &str,
-        _data: &[u8],
+        filename: &str,
+        data: &[u8],
     ) -> Result<MediaUploadResponse, WechatError> {
         let access_token = token_manager.get_token().await?;
-        let _path = format!(
-            "/cgi-bin/media/upload?access_token={}&type={}",
+        let url = format!(
+            "{}/cgi-bin/media/upload?access_token={}&type={}",
+            self.client.base_url(),
             access_token,
             media_type.as_str()
         );
 
-        Err(WechatError::Config(
-            "Media upload requires multipart form support".to_string(),
-        ))
+        let part = reqwest::multipart::Part::bytes(data.to_vec()).file_name(filename.to_string());
+        let form = reqwest::multipart::Form::new().part("media", part);
+
+        let response = self.client.http().post(&url).multipart(form).send().await?;
+
+        let result: MediaUploadResponse = response.json().await?;
+
+        if result.errcode != 0 {
+            return Err(WechatError::Api {
+                code: result.errcode,
+                message: result.errmsg,
+            });
+        }
+
+        Ok(result)
     }
 
     /// Get temporary media
@@ -564,6 +594,20 @@ impl MessageApi {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::types::{AppId, AppSecret};
+    use wiremock::matchers::{method, path, query_param};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
+
+    fn create_test_client_with_base_url(base_url: &str) -> WechatClient {
+        let appid = AppId::new("wx1234567890abcdef").unwrap();
+        let secret = AppSecret::new("secret1234567890ab").unwrap();
+        WechatClient::builder()
+            .appid(appid)
+            .secret(secret)
+            .base_url(base_url)
+            .build()
+            .unwrap()
+    }
 
     #[test]
     fn test_text_message() {
@@ -607,5 +651,95 @@ mod tests {
         assert_eq!(MediaType::Voice.as_str(), "voice");
         assert_eq!(MediaType::Video.as_str(), "video");
         assert_eq!(MediaType::Thumb.as_str(), "thumb");
+    }
+
+    #[tokio::test]
+    async fn test_upload_temp_media_success() {
+        let mock_server = MockServer::start().await;
+
+        Mock::given(method("POST"))
+            .and(path("/cgi-bin/media/upload"))
+            .and(query_param("access_token", "test_token"))
+            .and(query_param("type", "image"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "type": "image",
+                "media_id": "test_media_id_123",
+                "created_at": 1234567890,
+                "errcode": 0,
+                "errmsg": ""
+            })))
+            .mount(&mock_server)
+            .await;
+
+        let client = create_test_client_with_base_url(&mock_server.uri());
+        let message_api = MessageApi::new(client.clone());
+        let token_manager = crate::token::TokenManager::new(client);
+
+        Mock::given(method("GET"))
+            .and(path("/cgi-bin/token"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "access_token": "test_token",
+                "expires_in": 7200,
+                "errcode": 0,
+                "errmsg": ""
+            })))
+            .mount(&mock_server)
+            .await;
+
+        let image_data = b"fake_image_data";
+        let result = message_api
+            .upload_temp_media(&token_manager, MediaType::Image, "test.jpg", image_data)
+            .await;
+
+        assert!(result.is_ok());
+        let response = result.unwrap();
+        assert_eq!(response.media_type, "image");
+        assert_eq!(response.media_id, "test_media_id_123");
+        assert_eq!(response.created_at, 1234567890);
+    }
+
+    #[tokio::test]
+    async fn test_upload_temp_media_api_error() {
+        let mock_server = MockServer::start().await;
+
+        Mock::given(method("POST"))
+            .and(path("/cgi-bin/media/upload"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "type": "",
+                "media_id": "",
+                "created_at": 0,
+                "errcode": 40001,
+                "errmsg": "invalid credential"
+            })))
+            .mount(&mock_server)
+            .await;
+
+        Mock::given(method("GET"))
+            .and(path("/cgi-bin/token"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "access_token": "test_token",
+                "expires_in": 7200,
+                "errcode": 0,
+                "errmsg": ""
+            })))
+            .mount(&mock_server)
+            .await;
+
+        let client = create_test_client_with_base_url(&mock_server.uri());
+        let message_api = MessageApi::new(client.clone());
+        let token_manager = crate::token::TokenManager::new(client);
+
+        let image_data = b"fake_image_data";
+        let result = message_api
+            .upload_temp_media(&token_manager, MediaType::Image, "test.jpg", image_data)
+            .await;
+
+        assert!(result.is_err());
+        if let Err(WechatError::Api { code, message }) = result {
+            assert_eq!(code, 40001);
+            assert_eq!(message, "invalid credential");
+        } else {
+            panic!("Expected Api error");
+        }
     }
 }
