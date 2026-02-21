@@ -46,6 +46,11 @@ impl WechatClient {
         &self.base_url
     }
 
+    /// Get the underlying HTTP client for raw requests
+    pub fn http(&self) -> &Client {
+        &self.http
+    }
+
     /// Make a GET request to WeChat API
     ///
     /// # Arguments
