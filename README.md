@@ -11,13 +11,14 @@
 - 登录认证 (code2Session)
 - 用户信息获取与解密
 - 手机号获取
-- Access Token 自动管理
+- Access Token 自动管理（支持并发安全、单飞模式）
 - 小程序码/二维码生成
 - URL Scheme/Link 生成
 - 短链接生成
 - 客服消息发送
 - 订阅消息发送
 - 模板消息管理
+- 临时素材上传/获取
 
 ## 安装
 
@@ -49,8 +50,8 @@ use wechat_mp_sdk::{
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 创建客户端
-    let appid = AppId::new("your_appid")?;
-    let secret = AppSecret::new("your_secret")?;
+    let appid = AppId::new("wx1234567890abcdef")?;  // AppID 必须以 wx 开头，18 字符
+    let secret = AppSecret::new("your_secret".to_string())?;
     
     let client = WechatClient::builder()
         .appid(appid)
@@ -76,14 +77,14 @@ use wechat_mp_sdk::{WechatClient, WechatClientBuilder, types::{AppId, AppSecret}
 
 // 创建客户端
 let client = WechatClient::builder()
-    .appid(AppId::new("your_appid")?)
-    .secret(AppSecret::new("your_secret")?)
+    .appid(AppId::new("wx1234567890abcdef")?)
+    .secret(AppSecret::new("your_secret".to_string())?)
     .build()?;
 
 // 自定义配置
 let client = WechatClient::builder()
-    .appid(AppId::new("your_appid")?)
-    .secret(AppSecret::new("your_secret")?)
+    .appid(AppId::new("wx1234567890abcdef")?)
+    .secret(AppSecret::new("your_secret".to_string())?)
     .base_url("https://api.weixin.qq.com")  // 默认值
     .timeout(std::time::Duration::from_secs(30))  // 默认 30 秒
     .connect_timeout(std::time::Duration::from_secs(10))  // 默认 10 秒
@@ -163,6 +164,24 @@ message_api
     .await?;
 ```
 
+### 临时素材上传
+
+```rust
+use wechat_mp_sdk::api::message::{MessageApi, MediaType};
+use wechat_mp_sdk::token::TokenManager;
+
+let message_api = MessageApi::new(client.clone());
+let token_manager = TokenManager::new(client);
+
+// 上传临时素材
+let image_data = std::fs::read("image.png")?;
+let response = message_api
+    .upload_temp_media(&token_manager, MediaType::Image, &image_data, "image.png")
+    .await?;
+println!("Media ID: {}", response.media_id);
+println!("Expires in: {}s", response.expires_in);
+```
+
 ### 小程序码
 
 ```rust
@@ -231,10 +250,19 @@ let short_link = qrcode_api.generate_short_link(&token_manager, options).await?;
 
 ```rust
 use wechat_mp_sdk::token::TokenManager;
+use std::time::Duration;
 
+// 使用默认配置
 let token_manager = TokenManager::new(client);
 
-// 获取 Token（自动缓存和刷新）
+// 使用自定义配置
+let token_manager = TokenManager::builder(client)
+    .max_retries(5)                           // 最大重试次数（默认 3）
+    .retry_delay_ms(200)                     // 重试延迟（默认 100ms）
+    .refresh_buffer(Duration::from_secs(600)) // 刷新缓冲时间（默认 300s）
+    .build();
+
+// 获取 Token（自动缓存和刷新，并发安全）
 let token = token_manager.get_token().await?;
 println!("Access Token: {}", token);
 
@@ -242,17 +270,36 @@ println!("Access Token: {}", token);
 token_manager.invalidate().await;
 ```
 
+TokenManager 特性：
+- **自动缓存**: Token 有效期内复用，避免重复请求
+- **自动刷新**: Token 过期前自动刷新（默认提前 5 分钟）
+- **并发安全**: 多个并发请求共享同一 Token
+- **单飞模式**: 并发请求只触发一次 API 调用
+- **智能重试**: 自动重试临时性错误（如系统繁忙 -1、频率限制 45009）
+
 ### 数据解密
 
 ```rust
-use wechat_mp_sdk::crypto;
+use wechat_mp_sdk::crypto::{self, DecryptedUserData};
 
 let session_key = "session_key_from_login";
 let encrypted_data = "encrypted_data_from_miniprogram";
 let iv = "iv_from_miniprogram";
 
-let decrypted = crypto::decrypt_user_data(session_key, encrypted_data, iv)?;
-let user_info: UserInfo = serde_json::from_str(&decrypted)?;
+// 解密用户数据
+let decrypted: DecryptedUserData = crypto::decrypt_user_data(
+    session_key,
+    encrypted_data,
+    iv,
+)?;
+
+// 校验 watermark
+crypto::verify_watermark(&decrypted, "your_appid")?;
+
+// 访问解密后的数据
+if let Some(open_id) = &decrypted.open_id {
+    println!("OpenID: {}", open_id);
+}
 ```
 
 ## 错误处理
@@ -265,16 +312,43 @@ match result {
     Err(WechatError::Api { code, message }) => {
         eprintln!("API 错误: {} - {}", code, message);
     }
+    Err(WechatError::Token(msg)) => {
+        eprintln!("Token 错误: {}", msg);
+    }
     Err(WechatError::Config(msg)) => {
         eprintln!("配置错误: {}", msg);
     }
     Err(WechatError::Http(e)) => {
         eprintln!("网络错误: {}", e);
     }
+    Err(WechatError::Crypto(msg)) => {
+        eprintln!("加解密错误: {}", msg);
+    }
+    Err(WechatError::NotSupported(msg)) => {
+        eprintln!("功能不支持: {}", msg);
+    }
     Err(e) => {
         eprintln!("其他错误: {}", e);
     }
 }
+```
+
+## 类型安全
+
+SDK 使用强类型 ID 防止参数混用：
+
+```rust
+use wechat_mp_sdk::types::{AppId, OpenId, AppSecret};
+
+// AppId 校验：必须以 wx 开头，18 字符
+let appid = AppId::new("wx1234567890abcdef")?;
+
+// OpenId 校验：20-40 字符
+let openid = OpenId::new("o6_bmjrPTlm6_2sgVt7hMZOPfL2M")?;
+
+// 类型安全：无法混用不同类型的 ID
+fn send_message(to: OpenId) { /* ... */ }
+// send_message(appid)  // 编译错误！
 ```
 
 ## 文档
@@ -290,6 +364,19 @@ cargo doc --open
 ## 示例
 
 更多示例请查看 [examples/](examples/) 目录。
+
+## 测试
+
+```bash
+# 运行所有测试
+cargo test
+
+# 运行特定测试
+cargo test test_login
+
+# 运行测试并显示输出
+cargo test -- --nocapture
+```
 
 ## 许可证
 
