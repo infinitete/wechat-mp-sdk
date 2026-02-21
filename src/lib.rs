@@ -18,12 +18,12 @@
 //! ## Quick Start
 //!
 //! ```rust,ignore
-//! use wechat_mp_sdk::{WechatClient, WechatClientBuilder, types::{AppId, AppSecret}};
+//! use wechat_mp_sdk::{WechatMp, types::{AppId, AppSecret}};
 //!
 //! #[tokio::main]
 //! async fn main() -> Result<(), Box<dyn std::error::Error>> {
-//!     let client = WechatClient::builder()
-//!         .appid(AppId::new("your_appid")?)
+//!     let wechat = WechatMp::builder()
+//!         .appid(AppId::new("wx1234567890abcdef")?)
 //!         .secret(AppSecret::new("your_secret")?)
 //!         .build()?;
 //!
@@ -38,7 +38,7 @@
 //! - [`client`] - HTTP client for API calls
 //! - [`crypto`] - Data decryption utilities
 //! - [`error`] - Error types
-//! - [`token`] - Access token management
+//! - [`token`] - Access token management (internal, for advanced users)
 //! - [`types`] - Type definitions for WeChat API entities
 //!
 //! ## Error Handling
@@ -66,9 +66,9 @@ pub mod api;
 pub mod client;
 pub mod crypto;
 pub mod error;
+pub mod middleware;
 pub mod token;
 pub mod types;
 
-pub use client::{WechatClient, WechatClientBuilder};
+pub use client::{WechatClient, WechatClientBuilder, WechatMp, WechatMpBuilder};
 pub use error::WechatError;
-pub use token::TokenManager;

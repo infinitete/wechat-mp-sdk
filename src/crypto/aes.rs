@@ -12,6 +12,7 @@ use crate::types::Watermark;
 type Aes128CbcDecryptor = Decryptor<Aes128>;
 
 /// Decrypted user data with watermark
+#[non_exhaustive]
 #[derive(Debug, Clone, serde::Deserialize)]
 pub struct DecryptedUserData {
     /// Sensitive user data fields vary by scenario
@@ -20,6 +21,40 @@ pub struct DecryptedUserData {
     pub data: serde_json::Value,
     /// Watermark for verification
     pub watermark: Watermark,
+}
+
+impl DecryptedUserData {
+    pub fn new(data: serde_json::Value, watermark: Watermark) -> Self {
+        Self { data, watermark }
+    }
+
+    /// Get the user's OpenID from the decrypted data, if present.
+    pub fn open_id(&self) -> Option<&str> {
+        self.data.get("openId").and_then(|v| v.as_str())
+    }
+
+    /// Get the user's UnionID from the decrypted data, if present.
+    pub fn union_id(&self) -> Option<&str> {
+        self.data.get("unionId").and_then(|v| v.as_str())
+    }
+
+    /// Get the user's nickname from the decrypted data, if present.
+    pub fn nick_name(&self) -> Option<&str> {
+        self.data.get("nickName").and_then(|v| v.as_str())
+    }
+
+    /// Get the phone number from the decrypted data, if present.
+    pub fn phone_number(&self) -> Option<&str> {
+        self.data
+            .get("phoneNumber")
+            .or_else(|| self.data.get("purePhoneNumber"))
+            .and_then(|v| v.as_str())
+    }
+
+    /// Get the country code from the decrypted data, if present.
+    pub fn country_code(&self) -> Option<&str> {
+        self.data.get("countryCode").and_then(|v| v.as_str())
+    }
 }
 
 /// Decrypt WeChat encrypted user data.
@@ -108,10 +143,11 @@ pub fn decrypt_user_data(
 /// # Errors
 /// Returns [`WechatError::Signature`] if the watermark appid does not match.
 pub fn verify_watermark(data: &DecryptedUserData, expected_appid: &str) -> Result<(), WechatError> {
-    if data.watermark.appid != expected_appid {
+    if data.watermark.appid() != expected_appid {
         return Err(WechatError::Signature(format!(
             "Watermark appid mismatch: expected {}, got {}",
-            expected_appid, data.watermark.appid
+            expected_appid,
+            data.watermark.appid()
         )));
     }
     Ok(())

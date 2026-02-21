@@ -4,14 +4,23 @@
 
 use reqwest::Client;
 use serde::de::DeserializeOwned;
+use std::future::Future;
+use std::pin::Pin;
+use std::sync::Arc;
+use std::task::{Context, Poll};
 use std::time::Duration;
+use tower::Service;
 
-use crate::error::WechatError;
+use crate::error::{HttpError, WechatError};
 use crate::types::{AppId, AppSecret};
 
-const DEFAULT_BASE_URL: &str = "https://api.weixin.qq.com";
-const DEFAULT_TIMEOUT_SECS: u64 = 30;
-const DEFAULT_CONNECT_TIMEOUT_SECS: u64 = 10;
+pub(crate) const DEFAULT_BASE_URL: &str = "https://api.weixin.qq.com";
+pub(crate) const DEFAULT_TIMEOUT_SECS: u64 = 30;
+pub(crate) const DEFAULT_CONNECT_TIMEOUT_SECS: u64 = 10;
+
+type MiddlewareFuture =
+    Pin<Box<dyn Future<Output = Result<reqwest::Response, reqwest::Error>> + Send>>;
+type MiddlewareExecutor = Arc<dyn Fn(reqwest::Request) -> MiddlewareFuture + Send + Sync>;
 
 /// WeChat API Client
 ///
@@ -23,6 +32,20 @@ pub struct WechatClient {
     appid: AppId,
     secret: AppSecret,
     base_url: String,
+    middleware_executor: Option<MiddlewareExecutor>,
+}
+
+impl std::fmt::Debug for WechatClient {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("WechatClient")
+            .field("appid", &self.appid)
+            .field("base_url", &self.base_url)
+            .field(
+                "middleware_executor",
+                &self.middleware_executor.as_ref().map(|_| ".."),
+            )
+            .finish_non_exhaustive()
+    }
 }
 
 impl WechatClient {
@@ -37,7 +60,7 @@ impl WechatClient {
     }
 
     /// Get the app secret
-    pub fn secret(&self) -> &str {
+    pub(crate) fn secret(&self) -> &str {
         self.secret.as_str()
     }
 
@@ -46,9 +69,59 @@ impl WechatClient {
         &self.base_url
     }
 
-    /// Get the underlying HTTP client for raw requests
+    /// Returns the underlying [`reqwest::Client`] for raw HTTP requests.
+    ///
+    /// Note: requests made through this client bypass the middleware pipeline.
+    /// Use [`get`](Self::get) or [`post`](Self::post) for middleware-aware requests.
     pub fn http(&self) -> &Client {
         &self.http
+    }
+
+    pub(crate) fn with_middleware_executor(mut self, executor: MiddlewareExecutor) -> Self {
+        self.middleware_executor = Some(executor);
+        self
+    }
+
+    pub(crate) async fn send_request(
+        &self,
+        request: reqwest::Request,
+    ) -> Result<reqwest::Response, reqwest::Error> {
+        if let Some(executor) = &self.middleware_executor {
+            (executor)(request).await
+        } else {
+            self.http.execute(request).await
+        }
+    }
+
+    async fn execute<T: DeserializeOwned>(
+        &self,
+        request: reqwest::Request,
+    ) -> Result<T, WechatError> {
+        let response = self.send_request(request).await?;
+
+        if let Err(e) = response.error_for_status_ref() {
+            return Err(e.into());
+        }
+
+        let value: serde_json::Value = response.json().await?;
+
+        if let Some(errcode) = value.get("errcode").and_then(|v| v.as_i64()) {
+            if errcode != 0 {
+                let errmsg = value
+                    .get("errmsg")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("unknown error");
+                return Err(WechatError::Api {
+                    // Saturate to i32::MAX if errcode exceeds i32 range.
+                    // WeChat errcodes fit in i32, but i64→i32 conversion is fallible.
+                    code: errcode.try_into().unwrap_or(i32::MAX),
+                    message: errmsg.to_string(),
+                });
+            }
+        }
+
+        serde_json::from_value(value)
+            .map_err(|e| WechatError::Http(HttpError::Decode(e.to_string())))
     }
 
     /// Make a GET request to WeChat API
@@ -59,20 +132,18 @@ impl WechatClient {
     ///
     /// # Returns
     /// Deserialized response of type T
+    ///
+    /// # Errors
+    /// - Returns `WechatError::Http` for non-2xx HTTP status codes or decode failures
+    /// - Returns `WechatError::Api` when WeChat API returns errcode != 0
     pub async fn get<T: DeserializeOwned>(
         &self,
         path: &str,
         query: &[(&str, &str)],
     ) -> Result<T, WechatError> {
         let url = format!("{}{}", self.base_url, path);
-
-        let request = self.http.get(url).query(query);
-
-        let response = request.send().await?;
-
-        let result = response.json::<T>().await?;
-
-        Ok(result)
+        let request = self.http.get(url).query(query).build()?;
+        self.execute(request).await
     }
 
     /// Make a POST request to WeChat API
@@ -83,20 +154,33 @@ impl WechatClient {
     ///
     /// # Returns
     /// Deserialized response of type T
+    ///
+    /// # Errors
+    /// - Returns `WechatError::Http` for non-2xx HTTP status codes or decode failures
+    /// - Returns `WechatError::Api` when WeChat API returns errcode != 0
     pub async fn post<T: DeserializeOwned, B: serde::Serialize>(
         &self,
         path: &str,
         body: &B,
     ) -> Result<T, WechatError> {
         let url = format!("{}{}", self.base_url, path);
+        let request = self.http.post(url).json(body).build()?;
+        self.execute(request).await
+    }
+}
 
-        let request = self.http.post(url).json(body);
+impl Service<reqwest::Request> for WechatClient {
+    type Response = reqwest::Response;
+    type Error = reqwest::Error;
+    type Future = MiddlewareFuture;
 
-        let response = request.send().await?;
+    fn poll_ready(&mut self, _cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+        Poll::Ready(Ok(()))
+    }
 
-        let result = response.json::<T>().await?;
-
-        Ok(result)
+    fn call(&mut self, req: reqwest::Request) -> Self::Future {
+        let client = self.http.clone();
+        Box::pin(async move { client.execute(req).await })
     }
 }
 
@@ -121,7 +205,7 @@ impl WechatClient {
 ///     Ok(())
 /// }
 /// ```
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub struct WechatClientBuilder {
     appid: Option<AppId>,
     secret: Option<AppSecret>,
@@ -200,6 +284,7 @@ impl WechatClientBuilder {
             appid,
             secret,
             base_url,
+            middleware_executor: None,
         })
     }
 }
@@ -251,7 +336,11 @@ mod tests {
             .build()
             .unwrap();
 
+        // Verify client was built successfully with custom timeouts.
+        // reqwest::Client doesn't expose timeout getters, so we verify
+        // the builder accepted the values and produced a valid client.
         assert_eq!(client.base_url(), DEFAULT_BASE_URL);
+        assert_eq!(client.appid(), "wx1234567890abcdef");
     }
 
     #[test]

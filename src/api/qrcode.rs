@@ -1,10 +1,12 @@
+use std::sync::Arc;
+
 use serde::{Deserialize, Serialize};
 
-use crate::client::WechatClient;
+use crate::api::r#trait::{WechatApi, WechatContext};
 use crate::error::WechatError;
-use crate::token::TokenManager;
 
-#[derive(Debug, Clone, Serialize)]
+#[non_exhaustive]
+#[derive(Debug, Clone, Default, Serialize)]
 pub struct QrcodeOptions {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub path: Option<String>,
@@ -18,6 +20,18 @@ pub struct QrcodeOptions {
     pub is_hyaline: Option<bool>,
 }
 
+impl QrcodeOptions {
+    pub fn new() -> Self {
+        Self {
+            path: None,
+            width: None,
+            auto_color: None,
+            line_color: None,
+            is_hyaline: None,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LineColor {
     pub r: u8,
@@ -25,6 +39,7 @@ pub struct LineColor {
     pub b: u8,
 }
 
+#[non_exhaustive]
 #[derive(Debug, Clone, Serialize)]
 pub struct UnlimitQrcodeOptions {
     pub scene: String,
@@ -38,6 +53,19 @@ pub struct UnlimitQrcodeOptions {
     pub line_color: Option<LineColor>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub is_hyaline: Option<bool>,
+}
+
+impl UnlimitQrcodeOptions {
+    pub fn new(scene: impl Into<String>) -> Self {
+        Self {
+            scene: scene.into(),
+            page: None,
+            width: None,
+            auto_color: None,
+            line_color: None,
+            is_hyaline: None,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -60,6 +88,7 @@ pub struct UrlSchemeOptions {
     pub expire: Option<UrlSchemeExpire>,
 }
 
+#[non_exhaustive]
 #[derive(Debug, Clone, Deserialize)]
 pub struct UrlSchemeResponse {
     pub openlink: String,
@@ -83,6 +112,7 @@ pub struct UrlLinkOptions {
     pub expire_interval: Option<i64>,
 }
 
+#[non_exhaustive]
 #[derive(Debug, Clone, Deserialize)]
 pub struct UrlLinkResponse {
     pub link: String,
@@ -97,6 +127,7 @@ pub struct ShortLinkOptions {
     pub page_url: String,
 }
 
+#[non_exhaustive]
 #[derive(Debug, Clone, Deserialize)]
 pub struct ShortLinkResponse {
     pub link: String,
@@ -106,42 +137,49 @@ pub struct ShortLinkResponse {
     pub errmsg: String,
 }
 
+/// WeChat Mini Program QR code and URL link API
+///
+/// Provides methods for generating Mini Program codes, QR codes,
+/// URL schemes, URL links, and short links.
 pub struct QrcodeApi {
-    client: WechatClient,
+    context: Arc<WechatContext>,
 }
 
 impl QrcodeApi {
-    pub fn new(client: WechatClient) -> Self {
-        Self { client }
+    pub fn new(context: Arc<WechatContext>) -> Self {
+        Self { context }
     }
 
-    pub async fn get_wxa_code(
-        &self,
-        token_manager: &TokenManager,
-        options: QrcodeOptions,
-    ) -> Result<Vec<u8>, WechatError> {
-        let access_token = token_manager.get_token().await?;
+    /// Generate a Mini Program code (limited usage, up to 100,000 codes).
+    ///
+    /// POST /wxa/getwxacode
+    pub async fn get_wxa_code(&self, options: QrcodeOptions) -> Result<Vec<u8>, WechatError> {
+        let access_token = self.context.token_manager.get_token().await?;
         let path = format!("/wxa/getwxacode?access_token={}", access_token);
         self.get_image_bytes(&path, &options).await
     }
 
+    /// Generate an unlimited Mini Program code (no usage limit).
+    ///
+    /// POST /wxa/getwxacodeunlimit
     pub async fn get_wxa_code_unlimit(
         &self,
-        token_manager: &TokenManager,
         options: UnlimitQrcodeOptions,
     ) -> Result<Vec<u8>, WechatError> {
-        let access_token = token_manager.get_token().await?;
+        let access_token = self.context.token_manager.get_token().await?;
         let path = format!("/wxa/getwxacodeunlimit?access_token={}", access_token);
         self.get_image_bytes(&path, &options).await
     }
 
+    /// Create a Mini Program QR code for a given page path.
+    ///
+    /// POST /cgi-bin/wxaapp/createwxaqrcode
     pub async fn create_qrcode(
         &self,
-        token_manager: &TokenManager,
-        path: String,
+        path: &str,
         width: Option<u32>,
     ) -> Result<Vec<u8>, WechatError> {
-        let access_token = token_manager.get_token().await?;
+        let access_token = self.context.token_manager.get_token().await?;
         let url = format!(
             "/cgi-bin/wxaapp/createwxaqrcode?access_token={}",
             access_token
@@ -154,66 +192,57 @@ impl QrcodeApi {
             width: Option<u32>,
         }
 
-        let request = Request { path, width };
+        let request = Request {
+            path: path.to_string(),
+            width,
+        };
         self.get_image_bytes(&url, &request).await
     }
 
+    /// Generate a URL Scheme for opening the Mini Program.
+    ///
+    /// POST /wxa/generatescheme
     pub async fn generate_url_scheme(
         &self,
-        token_manager: &TokenManager,
         options: UrlSchemeOptions,
     ) -> Result<String, WechatError> {
-        let access_token = token_manager.get_token().await?;
+        let access_token = self.context.token_manager.get_token().await?;
         let path = format!("/wxa/generatescheme?access_token={}", access_token);
 
-        let response: UrlSchemeResponse = self.client.post(&path, &options).await?;
+        let response: UrlSchemeResponse = self.context.client.post(&path, &options).await?;
 
-        if response.errcode != 0 {
-            return Err(WechatError::Api {
-                code: response.errcode,
-                message: response.errmsg,
-            });
-        }
+        WechatError::check_api(response.errcode, &response.errmsg)?;
 
         Ok(response.openlink)
     }
 
-    pub async fn generate_url_link(
-        &self,
-        token_manager: &TokenManager,
-        options: UrlLinkOptions,
-    ) -> Result<String, WechatError> {
-        let access_token = token_manager.get_token().await?;
+    /// Generate a URL Link for opening the Mini Program.
+    ///
+    /// POST /wxa/generate_urllink
+    pub async fn generate_url_link(&self, options: UrlLinkOptions) -> Result<String, WechatError> {
+        let access_token = self.context.token_manager.get_token().await?;
         let path = format!("/wxa/generate_urllink?access_token={}", access_token);
 
-        let response: UrlLinkResponse = self.client.post(&path, &options).await?;
+        let response: UrlLinkResponse = self.context.client.post(&path, &options).await?;
 
-        if response.errcode != 0 {
-            return Err(WechatError::Api {
-                code: response.errcode,
-                message: response.errmsg,
-            });
-        }
+        WechatError::check_api(response.errcode, &response.errmsg)?;
 
         Ok(response.link)
     }
 
+    /// Generate a short link for the Mini Program.
+    ///
+    /// POST /wxa/genwxashortlink
     pub async fn generate_short_link(
         &self,
-        token_manager: &TokenManager,
         options: ShortLinkOptions,
     ) -> Result<String, WechatError> {
-        let access_token = token_manager.get_token().await?;
+        let access_token = self.context.token_manager.get_token().await?;
         let path = format!("/wxa/genwxashortlink?access_token={}", access_token);
 
-        let response: ShortLinkResponse = self.client.post(&path, &options).await?;
+        let response: ShortLinkResponse = self.context.client.post(&path, &options).await?;
 
-        if response.errcode != 0 {
-            return Err(WechatError::Api {
-                code: response.errcode,
-                message: response.errmsg,
-            });
-        }
+        WechatError::check_api(response.errcode, &response.errmsg)?;
 
         Ok(response.link)
     }
@@ -223,8 +252,9 @@ impl QrcodeApi {
         path: &str,
         body: &T,
     ) -> Result<Vec<u8>, WechatError> {
-        let url = format!("{}{}", self.client.base_url(), path);
-        let response = self.client.http().post(&url).json(body).send().await?;
+        let url = format!("{}{}", self.context.client.base_url(), path);
+        let request = self.context.client.http().post(&url).json(body).build()?;
+        let response = self.context.client.send_request(request).await?;
 
         let content_type = response
             .headers()
@@ -245,6 +275,16 @@ impl QrcodeApi {
     }
 }
 
+impl WechatApi for QrcodeApi {
+    fn api_name(&self) -> &'static str {
+        "qrcode"
+    }
+
+    fn context(&self) -> &WechatContext {
+        &self.context
+    }
+}
+
 #[derive(Debug, Deserialize)]
 struct ErrorResponse {
     errcode: i32,
@@ -257,13 +297,8 @@ mod tests {
 
     #[test]
     fn test_qrcode_options_defaults() {
-        let options = QrcodeOptions {
-            path: Some("/pages/index".to_string()),
-            width: None,
-            auto_color: None,
-            line_color: None,
-            is_hyaline: None,
-        };
+        let mut options = QrcodeOptions::new();
+        options.path = Some("/pages/index".to_string());
         assert!(options.path.is_some());
     }
 

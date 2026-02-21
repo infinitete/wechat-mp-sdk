@@ -11,21 +11,17 @@ fn encrypt_aes_128_cbc(key: &[u8; 16], iv: &[u8; 16], plaintext: &str) -> Vec<u8
     use aes::cipher::BlockEncryptMut;
 
     let cipher = Aes128CbcEnc::new(key.into(), iv.into());
-    let mut data = plaintext.as_bytes().to_vec();
+    let pt_bytes = plaintext.as_bytes();
+    let pt_len = pt_bytes.len();
 
-    // Add PKCS7 padding
-    let pad_len = 16 - (data.len() % 16);
-    if pad_len == 16 {
-        // When data is exactly on block boundary, add a full padding block
-        data.extend(vec![16u8; 16]);
-    } else {
-        data.extend(vec![pad_len as u8; pad_len]);
-    }
+    // Allocate buffer with space for PKCS7 padding (always adds 1–16 bytes)
+    let pad_len = 16 - (pt_len % 16);
+    let mut buffer = vec![0u8; pt_len + pad_len];
+    buffer[..pt_len].copy_from_slice(pt_bytes);
 
-    // Encrypt using the cipher
-    let mut buffer = data;
+    // Let the library handle all PKCS7 padding — no manual padding
     let encrypted = cipher
-        .encrypt_padded_mut::<Pkcs7>(&mut buffer, plaintext.len())
+        .encrypt_padded_mut::<Pkcs7>(&mut buffer, pt_len)
         .unwrap();
     encrypted.to_vec()
 }
@@ -101,26 +97,20 @@ fn test_empty_encrypted_data() {
 
 #[test]
 fn test_verify_watermark_success() {
-    let data = DecryptedUserData {
-        data: serde_json::json!({"openid": "test"}),
-        watermark: Watermark {
-            timestamp: 1234567890,
-            appid: "wx1234567890".to_string(),
-        },
-    };
+    let data = DecryptedUserData::new(
+        serde_json::json!({"openid": "test"}),
+        Watermark::new(1234567890, "wx1234567890"),
+    );
     let result = verify_watermark(&data, "wx1234567890");
     assert!(result.is_ok());
 }
 
 #[test]
 fn test_verify_watermark_mismatch() {
-    let data = DecryptedUserData {
-        data: serde_json::json!({"openid": "test"}),
-        watermark: Watermark {
-            timestamp: 1234567890,
-            appid: "wx1234567890".to_string(),
-        },
-    };
+    let data = DecryptedUserData::new(
+        serde_json::json!({"openid": "test"}),
+        Watermark::new(1234567890, "wx1234567890"),
+    );
     let result = verify_watermark(&data, "wx9999999999");
     assert!(result.is_err());
     let err = result.unwrap_err();
@@ -129,34 +119,40 @@ fn test_verify_watermark_mismatch() {
 
 #[test]
 fn test_watermark_struct() {
-    let watermark = Watermark {
-        timestamp: 1234567890,
-        appid: "wxabcdef123456789".to_string(),
-    };
-    assert_eq!(watermark.timestamp, 1234567890);
-    assert_eq!(watermark.appid, "wxabcdef123456789");
+    let watermark = Watermark::new(1234567890, "wxabcdef123456789");
+    assert_eq!(watermark.timestamp(), 1234567890);
+    assert_eq!(watermark.appid(), "wxabcdef123456789");
 }
 
 #[test]
 fn test_decrypted_user_data_struct() {
-    let data = DecryptedUserData {
-        data: serde_json::json!({"nickName": "Test", "openid": "o123"}),
-        watermark: Watermark {
-            timestamp: 1234567890,
-            appid: "wx123".to_string(),
-        },
-    };
+    let data = DecryptedUserData::new(
+        serde_json::json!({"nickName": "Test", "openid": "o123"}),
+        Watermark::new(1234567890, "wx123"),
+    );
     assert_eq!(data.data["nickName"], "Test");
-    assert_eq!(data.watermark.appid, "wx123");
+    assert_eq!(data.watermark.appid(), "wx123");
 }
 
-// Note: These edge case tests require precise AES-CBC encryption which has known issues
-// with the current test helper. The main encryption/decryption functionality is tested
-// by the other passing tests.
-// #[test]
-// fn test_end_to_end_encryption_decryption_simple() { ... }
-// #[test]
-// fn test_end_to_end_boundary_exact_block() { ... }
+#[test]
+fn test_end_to_end_encryption_decryption_simple() {
+    let key = b"simplekey1234567";
+    let iv = b"simpleiv12345678";
+    let plaintext =
+        r#"{"openid":"test_user","watermark":{"timestamp":1609459200,"appid":"wxsimple"}}"#;
+
+    let encrypted = encrypt_aes_128_cbc(key, iv, plaintext);
+
+    let key_b64 = BASE64.encode(key);
+    let iv_b64 = BASE64.encode(iv);
+    let encrypted_b64 = BASE64.encode(&encrypted);
+
+    let result = decrypt_user_data(&key_b64, &encrypted_b64, &iv_b64);
+
+    assert!(result.is_ok(), "Decryption failed: {:?}", result.err());
+    let decrypted = result.unwrap();
+    assert_eq!(decrypted.data["openid"], "test_user");
+}
 
 #[test]
 fn test_end_to_end_encryption_decryption_with_special_chars() {
@@ -223,8 +219,29 @@ fn test_end_to_end_multiple_fields() {
     assert_eq!(decrypted.data["city"], "Shenzhen");
 }
 
-// #[test]
-// fn test_end_to_end_boundary_exact_block() { ... }
+#[test]
+fn test_end_to_end_boundary_exact_block() {
+    let key = b"blockboundarykey";
+    let iv = b"blockboundaryiv!";
+    let plaintext = r#"{"openid":"block_boundary_test","watermark":{"timestamp":1609459200,"appid":"wxblocktest12345"}}"#;
+    assert_eq!(
+        plaintext.len() % 16,
+        0,
+        "Plaintext must be block-aligned for this test"
+    );
+
+    let encrypted = encrypt_aes_128_cbc(key, iv, plaintext);
+
+    let key_b64 = BASE64.encode(key);
+    let iv_b64 = BASE64.encode(iv);
+    let encrypted_b64 = BASE64.encode(&encrypted);
+
+    let result = decrypt_user_data(&key_b64, &encrypted_b64, &iv_b64);
+
+    assert!(result.is_ok(), "Decryption failed: {:?}", result.err());
+    let decrypted = result.unwrap();
+    assert_eq!(decrypted.data["openid"], "block_boundary_test");
+}
 
 #[test]
 fn test_end_to_end_boundary_two_blocks() {

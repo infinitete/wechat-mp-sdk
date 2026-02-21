@@ -1,6 +1,6 @@
 [package]
 name = "wechat-mp-sdk"
-version = "0.1.0"
+version = "0.3.0"
 edition = "2021"
 license = "MIT"
 rust-version = "1.70"
@@ -12,18 +12,28 @@ categories = ["api-bindings", "web-programming"]
 repository = "https://github.com/infinitete/wechat-mp-sdk"
 documentation = "https://docs.rs/wechat-mp-sdk"
 homepage = "https://github.com/infinitete/wechat-mp-sdk"
+exclude = [".github/", "tests/fixtures/", ".sisyphus/"]
+
+[features]
+default = ["rustls-tls"]
+rustls-tls = ["reqwest/rustls-tls"]
+native-tls = ["reqwest/native-tls"]
 
 [dependencies]
-reqwest = { version = "0.12", features = ["json", "multipart", "rustls-tls"], default-features = false }
-tokio = { version = "1", features = ["full"] }
+reqwest = { version = "0.12", features = ["json", "multipart"], default-features = false }
+tokio = { version = "1", features = ["sync", "time", "rt", "macros"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 thiserror = "2"
 cbc = "0.1"
 aes = "0.8"
 base64 = "0.22"
+tower = "0.5"
+http = "1"
+log = "0.4"
+percent-encoding = "2"
 
 [dev-dependencies]
 wiremock = "0.6"
-tokio-test = "0.4"
-futures = "0.3.31"
+tokio = { version = "1", features = ["full"] }
+futures = "0.3"

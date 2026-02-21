@@ -8,25 +8,20 @@
 //! Run with: cargo run --example login_flow
 
 use wechat_mp_sdk::{
-    api::auth::AuthApi,
     types::{AppId, AppSecret},
-    WechatClient,
+    WechatMp,
 };
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let appid = AppId::new("wx1234567890abcdef")?;
-    let secret = AppSecret::new("your_app_secret_here")?;
-
-    let client = WechatClient::builder()
-        .appid(appid)
-        .secret(secret)
+    let wechat = WechatMp::builder()
+        .appid(AppId::new("wx1234567890abcdef")?)
+        .secret(AppSecret::new("your_app_secret_here")?)
         .build()?;
 
-    let auth_api = AuthApi::new(client);
     let js_code = "code_from_wx_login";
 
-    match auth_api.login(js_code).await {
+    match wechat.auth_login(js_code).await {
         Ok(response) => {
             if response.is_success() {
                 println!("Login successful!");
@@ -36,7 +31,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
                 println!("Session Key: {}", response.session_key);
             } else {
-                eprintln!("Login failed: {}", response.errmsg);
+                eprintln!("Login failed: {}", response.errmsg());
             }
         }
         Err(e) => {

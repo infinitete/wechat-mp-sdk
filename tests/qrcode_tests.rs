@@ -3,27 +3,33 @@
 //! These tests mock the WeChat API responses to verify QRCode API functionality
 //! without making real network calls.
 
+use std::sync::Arc;
+
 use wechat_mp_sdk::api::qrcode::{
     LineColor, QrcodeApi, QrcodeOptions, ShortLinkOptions, UnlimitQrcodeOptions, UrlLinkOptions,
     UrlSchemeOptions,
 };
+use wechat_mp_sdk::api::WechatContext;
 use wechat_mp_sdk::client::WechatClient;
 use wechat_mp_sdk::token::TokenManager;
 use wechat_mp_sdk::types::{AppId, AppSecret};
 use wiremock::matchers::{body_json, method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
-/// Create a test client pointing to the mock server
-async fn create_test_client(mock_server: &MockServer) -> WechatClient {
-    let appid = AppId::new("wx1234567890abcdef".to_string()).unwrap();
-    let secret = AppSecret::new("test_secret_12345".to_string()).unwrap();
-
-    WechatClient::builder()
+async fn create_test_context(mock_server: &MockServer) -> Arc<WechatContext> {
+    let appid = AppId::new("wx1234567890abcdef").unwrap();
+    let secret = AppSecret::new("test_secret_12345").unwrap();
+    let client = WechatClient::builder()
         .appid(appid)
         .secret(secret)
         .base_url(mock_server.uri())
         .build()
-        .unwrap()
+        .unwrap();
+    let token_manager = TokenManager::new(client.clone());
+    Arc::new(WechatContext::new(
+        Arc::new(client),
+        Arc::new(token_manager),
+    ))
 }
 
 /// Test successful get_wxa_code_unlimit with mock
@@ -57,26 +63,20 @@ async fn test_mock_get_wxa_code_unlimit_success() {
         .mount(&mock_server)
         .await;
 
-    let client = create_test_client(&mock_server).await;
-    let token_manager = TokenManager::new(client.clone());
-    let qrcode_api = QrcodeApi::new(client);
+    let context = create_test_context(&mock_server).await;
+    let qrcode_api = QrcodeApi::new(context);
 
-    let options = UnlimitQrcodeOptions {
-        scene: "abc123".to_string(),
-        page: Some("/pages/index/index".to_string()),
-        width: Some(430),
-        auto_color: Some(false),
-        line_color: Some(LineColor { r: 0, g: 0, b: 0 }),
-        is_hyaline: Some(false),
-    };
+    let mut options = UnlimitQrcodeOptions::new("abc123");
+    options.page = Some("/pages/index/index".to_string());
+    options.width = Some(430);
+    options.auto_color = Some(false);
+    options.line_color = Some(LineColor { r: 0, g: 0, b: 0 });
+    options.is_hyaline = Some(false);
 
-    let result = qrcode_api
-        .get_wxa_code_unlimit(&token_manager, options)
-        .await;
+    let result = qrcode_api.get_wxa_code_unlimit(options).await;
 
     assert!(result.is_ok());
     let bytes = result.unwrap();
-    // Verify it's a valid PNG (starts with PNG magic bytes)
     assert!(bytes.starts_with(&[0x89, 0x50, 0x4E, 0x47]));
     assert!(!bytes.is_empty());
 }
@@ -106,22 +106,13 @@ async fn test_mock_get_wxa_code_unlimit_error() {
         .mount(&mock_server)
         .await;
 
-    let client = create_test_client(&mock_server).await;
-    let token_manager = TokenManager::new(client.clone());
-    let qrcode_api = QrcodeApi::new(client);
+    let context = create_test_context(&mock_server).await;
+    let qrcode_api = QrcodeApi::new(context);
 
-    let options = UnlimitQrcodeOptions {
-        scene: "test_scene".to_string(),
-        page: None,
-        width: Some(430),
-        auto_color: None,
-        line_color: None,
-        is_hyaline: None,
-    };
+    let mut options = UnlimitQrcodeOptions::new("test_scene");
+    options.width = Some(430);
 
-    let result = qrcode_api
-        .get_wxa_code_unlimit(&token_manager, options)
-        .await;
+    let result = qrcode_api.get_wxa_code_unlimit(options).await;
 
     assert!(result.is_err());
     let err = result.unwrap_err();
@@ -158,23 +149,97 @@ async fn test_mock_get_wxa_code_success() {
         .mount(&mock_server)
         .await;
 
-    let client = create_test_client(&mock_server).await;
-    let token_manager = TokenManager::new(client.clone());
-    let qrcode_api = QrcodeApi::new(client);
+    let context = create_test_context(&mock_server).await;
+    let qrcode_api = QrcodeApi::new(context);
 
-    let options = QrcodeOptions {
-        path: Some("/pages/index/index".to_string()),
-        width: Some(430),
-        auto_color: Some(false),
-        line_color: Some(LineColor { r: 0, g: 0, b: 0 }),
-        is_hyaline: Some(false),
-    };
+    let mut options = QrcodeOptions::new();
+    options.path = Some("/pages/index/index".to_string());
+    options.width = Some(430);
+    options.auto_color = Some(false);
+    options.line_color = Some(LineColor { r: 0, g: 0, b: 0 });
+    options.is_hyaline = Some(false);
 
-    let result = qrcode_api.get_wxa_code(&token_manager, options).await;
+    let result = qrcode_api.get_wxa_code(options).await;
 
     assert!(result.is_ok());
     let bytes = result.unwrap();
     assert!(bytes.starts_with(&[0x89, 0x50, 0x4E, 0x47]));
+}
+
+#[tokio::test]
+async fn test_mock_create_qrcode_success() {
+    let mock_server = MockServer::start().await;
+
+    Mock::given(method("GET"))
+        .and(path("/cgi-bin/token"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "access_token": "mock_token_qrcode",
+            "expires_in": 7200
+        })))
+        .mount(&mock_server)
+        .await;
+
+    let expected_body = serde_json::json!({
+        "path": "/pages/index/index",
+        "width": 430
+    });
+
+    Mock::given(method("POST"))
+        .and(path("/cgi-bin/wxaapp/createwxaqrcode"))
+        .and(body_json(expected_body))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .set_body_bytes(vec![0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]),
+        )
+        .mount(&mock_server)
+        .await;
+
+    let context = create_test_context(&mock_server).await;
+    let qrcode_api = QrcodeApi::new(context);
+
+    let result = qrcode_api
+        .create_qrcode("/pages/index/index", Some(430))
+        .await;
+
+    assert!(result.is_ok());
+    let bytes = result.unwrap();
+    assert!(bytes.starts_with(&[0x89, 0x50, 0x4E, 0x47]));
+}
+
+#[tokio::test]
+async fn test_mock_create_qrcode_error() {
+    let mock_server = MockServer::start().await;
+
+    Mock::given(method("GET"))
+        .and(path("/cgi-bin/token"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "access_token": "mock_token_qrcode",
+            "expires_in": 7200
+        })))
+        .mount(&mock_server)
+        .await;
+
+    Mock::given(method("POST"))
+        .and(path("/cgi-bin/wxaapp/createwxaqrcode"))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .insert_header("content-type", "application/json")
+                .set_body_json(serde_json::json!({
+                    "errcode": 45009,
+                    "errmsg": "reach max api daily quota limit"
+                })),
+        )
+        .mount(&mock_server)
+        .await;
+
+    let context = create_test_context(&mock_server).await;
+    let qrcode_api = QrcodeApi::new(context);
+
+    let result = qrcode_api.create_qrcode("/pages/index", None).await;
+
+    assert!(result.is_err());
+    let err = result.unwrap_err();
+    assert!(matches!(err, wechat_mp_sdk::WechatError::Api { .. }));
 }
 
 /// Test successful generate_url_scheme with mock
@@ -203,9 +268,8 @@ async fn test_mock_generate_url_scheme_success() {
         .mount(&mock_server)
         .await;
 
-    let client = create_test_client(&mock_server).await;
-    let token_manager = TokenManager::new(client.clone());
-    let qrcode_api = QrcodeApi::new(client);
+    let context = create_test_context(&mock_server).await;
+    let qrcode_api = QrcodeApi::new(context);
 
     let options = UrlSchemeOptions {
         path: Some("/pages/index/index".to_string()),
@@ -213,9 +277,7 @@ async fn test_mock_generate_url_scheme_success() {
         expire: None,
     };
 
-    let result = qrcode_api
-        .generate_url_scheme(&token_manager, options)
-        .await;
+    let result = qrcode_api.generate_url_scheme(options).await;
 
     assert!(result.is_ok());
     let scheme_url = result.unwrap();
@@ -247,9 +309,8 @@ async fn test_mock_generate_url_scheme_error() {
         .mount(&mock_server)
         .await;
 
-    let client = create_test_client(&mock_server).await;
-    let token_manager = TokenManager::new(client.clone());
-    let qrcode_api = QrcodeApi::new(client);
+    let context = create_test_context(&mock_server).await;
+    let qrcode_api = QrcodeApi::new(context);
 
     let options = UrlSchemeOptions {
         path: Some("/invalid/path".to_string()),
@@ -257,9 +318,7 @@ async fn test_mock_generate_url_scheme_error() {
         expire: None,
     };
 
-    let result = qrcode_api
-        .generate_url_scheme(&token_manager, options)
-        .await;
+    let result = qrcode_api.generate_url_scheme(options).await;
 
     assert!(result.is_err());
 }
@@ -290,9 +349,8 @@ async fn test_mock_generate_url_link_success() {
         .mount(&mock_server)
         .await;
 
-    let client = create_test_client(&mock_server).await;
-    let token_manager = TokenManager::new(client.clone());
-    let qrcode_api = QrcodeApi::new(client);
+    let context = create_test_context(&mock_server).await;
+    let qrcode_api = QrcodeApi::new(context);
 
     let options = UrlLinkOptions {
         path: Some("/pages/index/index".to_string()),
@@ -302,7 +360,7 @@ async fn test_mock_generate_url_link_success() {
         expire_interval: None,
     };
 
-    let result = qrcode_api.generate_url_link(&token_manager, options).await;
+    let result = qrcode_api.generate_url_link(options).await;
 
     assert!(result.is_ok());
     let link = result.unwrap();
@@ -334,9 +392,8 @@ async fn test_mock_generate_url_link_error() {
         .mount(&mock_server)
         .await;
 
-    let client = create_test_client(&mock_server).await;
-    let token_manager = TokenManager::new(client.clone());
-    let qrcode_api = QrcodeApi::new(client);
+    let context = create_test_context(&mock_server).await;
+    let qrcode_api = QrcodeApi::new(context);
 
     let options = UrlLinkOptions {
         path: None,
@@ -346,7 +403,7 @@ async fn test_mock_generate_url_link_error() {
         expire_interval: None,
     };
 
-    let result = qrcode_api.generate_url_link(&token_manager, options).await;
+    let result = qrcode_api.generate_url_link(options).await;
 
     assert!(result.is_err());
 }
@@ -377,17 +434,14 @@ async fn test_mock_generate_short_link_success() {
         .mount(&mock_server)
         .await;
 
-    let client = create_test_client(&mock_server).await;
-    let token_manager = TokenManager::new(client.clone());
-    let qrcode_api = QrcodeApi::new(client);
+    let context = create_test_context(&mock_server).await;
+    let qrcode_api = QrcodeApi::new(context);
 
     let options = ShortLinkOptions {
         page_url: "https://example.com/page".to_string(),
     };
 
-    let result = qrcode_api
-        .generate_short_link(&token_manager, options)
-        .await;
+    let result = qrcode_api.generate_short_link(options).await;
 
     assert!(result.is_ok());
     let link = result.unwrap();
@@ -419,17 +473,14 @@ async fn test_mock_generate_short_link_error() {
         .mount(&mock_server)
         .await;
 
-    let client = create_test_client(&mock_server).await;
-    let token_manager = TokenManager::new(client.clone());
-    let qrcode_api = QrcodeApi::new(client);
+    let context = create_test_context(&mock_server).await;
+    let qrcode_api = QrcodeApi::new(context);
 
     let options = ShortLinkOptions {
         page_url: "invalid_url".to_string(),
     };
 
-    let result = qrcode_api
-        .generate_short_link(&token_manager, options)
-        .await;
+    let result = qrcode_api.generate_short_link(options).await;
 
     assert!(result.is_err());
 }
@@ -468,22 +519,17 @@ async fn test_mock_get_wxa_code_unlimit_request_body() {
         .mount(&mock_server)
         .await;
 
-    let client = create_test_client(&mock_server).await;
-    let token_manager = TokenManager::new(client.clone());
-    let qrcode_api = QrcodeApi::new(client);
+    let context = create_test_context(&mock_server).await;
+    let qrcode_api = QrcodeApi::new(context);
 
-    let options = UnlimitQrcodeOptions {
-        scene: "test123".to_string(),
-        page: Some("pages/index/index".to_string()),
-        width: Some(430),
-        auto_color: Some(false),
-        line_color: Some(LineColor { r: 255, g: 0, b: 0 }),
-        is_hyaline: Some(true),
-    };
+    let mut options = UnlimitQrcodeOptions::new("test123");
+    options.page = Some("pages/index/index".to_string());
+    options.width = Some(430);
+    options.auto_color = Some(false);
+    options.line_color = Some(LineColor { r: 255, g: 0, b: 0 });
+    options.is_hyaline = Some(true);
 
-    let result = qrcode_api
-        .get_wxa_code_unlimit(&token_manager, options)
-        .await;
+    let result = qrcode_api.get_wxa_code_unlimit(options).await;
 
     // Should succeed because the request body matches
     assert!(result.is_ok());

@@ -57,11 +57,11 @@ const RETRY_DELAY_MS: u64 = 100;
 /// Retryable WeChat API error codes.
 /// - -1: System busy
 /// - 45009: API call limit exceeded
-const RETRYABLE_ERROR_CODES: &[i32] = &[-1, 45009];
+pub(crate) const RETRYABLE_ERROR_CODES: &[i32] = &[-1, 45009];
 
-pub struct CachedToken {
-    pub token: AccessToken,
-    pub expires_at: Instant,
+pub(crate) struct CachedToken {
+    pub(crate) token: AccessToken,
+    pub(crate) expires_at: Instant,
 }
 
 impl CachedToken {
@@ -71,26 +71,26 @@ impl CachedToken {
 }
 
 #[derive(Debug, Deserialize)]
-pub struct TokenResponse {
-    pub access_token: String,
-    pub expires_in: u64,
+pub(crate) struct TokenResponse {
+    pub(crate) access_token: String,
+    pub(crate) expires_in: u64,
     #[serde(default)]
-    pub errcode: i32,
+    pub(crate) errcode: i32,
     #[serde(default)]
-    pub errmsg: String,
+    pub(crate) errmsg: String,
 }
 
 impl TokenResponse {
-    pub fn is_success(&self) -> bool {
+    pub(crate) fn is_success(&self) -> bool {
         self.errcode == 0
     }
 
-    pub fn is_retryable_error(&self) -> bool {
+    pub(crate) fn is_retryable_error(&self) -> bool {
         RETRYABLE_ERROR_CODES.contains(&self.errcode)
     }
 }
 
-type FetchResult = Result<(String, u64), String>;
+type FetchResult = Result<(String, u64), WechatError>;
 
 /// Represents an in-flight token refresh operation.
 /// Multiple concurrent requests share this state and wait for the same result.
@@ -103,11 +103,21 @@ struct InFlightFetch {
 /// Uses single-flight pattern to merge concurrent refresh requests.
 pub struct TokenManager {
     client: WechatClient,
-    pub cache: RwLock<Option<CachedToken>>,
+    pub(crate) cache: RwLock<Option<CachedToken>>,
     in_flight: Mutex<Option<Arc<InFlightFetch>>>,
-    pub refresh_buffer: Duration,
+    pub(crate) refresh_buffer: Duration,
     max_retries: u32,
     retry_delay_ms: u64,
+}
+
+impl std::fmt::Debug for TokenManager {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("TokenManager")
+            .field("refresh_buffer", &self.refresh_buffer)
+            .field("max_retries", &self.max_retries)
+            .field("retry_delay_ms", &self.retry_delay_ms)
+            .finish_non_exhaustive()
+    }
 }
 
 impl TokenManager {
@@ -178,12 +188,13 @@ impl TokenManager {
 
         if is_creator {
             let fetch_result = self.fetch_token_with_retry().await;
-            let result_to_store = match &fetch_result {
-                Ok(response) => match AccessToken::new(response.access_token.clone()) {
-                    Ok(_) => Ok((response.access_token.clone(), response.expires_in)),
-                    Err(e) => Err(e.to_string()),
-                },
-                Err(e) => Err(e.to_string()),
+            let result_to_store = match fetch_result {
+                Ok(TokenResponse {
+                    access_token,
+                    expires_in,
+                    ..
+                }) => AccessToken::new(access_token.as_str()).map(|_| (access_token, expires_in)),
+                Err(e) => Err(e),
             };
 
             if let Ok((ref token_str, expires_in)) = result_to_store {
@@ -203,12 +214,7 @@ impl TokenManager {
 
             *self.in_flight.lock().await = None;
 
-            result_to_store
-                .map(|(token, _)| token)
-                .map_err(|e| match fetch_result {
-                    Err(we) => we,
-                    Ok(_) => WechatError::Token(e),
-                })
+            result_to_store.map(|(token, _)| token)
         } else {
             // Correct single-flight pattern: register as waiter BEFORE checking result.
             // This ensures we don't miss the notification if notify_waiters() is called
@@ -218,10 +224,7 @@ impl TokenManager {
 
                 // Check if result is already available
                 if let Some(ref result) = *in_flight_fetch.result.lock().await {
-                    return result
-                        .clone()
-                        .map(|(token, _)| token)
-                        .map_err(WechatError::Token);
+                    return result.clone().map(|(token, _)| token);
                 }
 
                 // Wait for notification - we're now registered, so we won't miss it
@@ -229,10 +232,7 @@ impl TokenManager {
 
                 // After being notified, check again for result
                 if let Some(ref result) = *in_flight_fetch.result.lock().await {
-                    return result
-                        .clone()
-                        .map(|(token, _)| token)
-                        .map_err(WechatError::Token);
+                    return result.clone().map(|(token, _)| token);
                 }
                 // Loop again if result still not available (shouldn't happen normally)
             }
@@ -255,7 +255,7 @@ impl TokenManager {
                         });
                         if attempt < self.max_retries - 1 {
                             tokio::time::sleep(Duration::from_millis(
-                                self.retry_delay_ms * (attempt + 1) as u64,
+                                self.retry_delay_ms * 2u64.pow(attempt),
                             ))
                             .await;
                         }
@@ -270,7 +270,7 @@ impl TokenManager {
                     last_error = Some(WechatError::Http(e));
                     if attempt < self.max_retries - 1 {
                         tokio::time::sleep(Duration::from_millis(
-                            self.retry_delay_ms * (attempt + 1) as u64,
+                            self.retry_delay_ms * 2u64.pow(attempt),
                         ))
                         .await;
                     }
@@ -417,6 +417,16 @@ mod tests {
     }
 
     #[test]
+    fn test_cached_token_at_boundary() {
+        let token = AccessToken::new("test_token").unwrap();
+        let cached = CachedToken {
+            token,
+            expires_at: Instant::now() + Duration::from_secs(300),
+        };
+        assert!(cached.is_expired(Duration::from_secs(300)));
+    }
+
+    #[test]
     fn test_token_response_success() {
         let response = TokenResponse {
             access_token: "token123".to_string(),
@@ -471,6 +481,24 @@ mod tests {
         assert!(!response.is_retryable_error());
     }
 
+    #[test]
+    fn test_token_response_various_errors() {
+        let error_codes = [40001, 40002, 40013, 41002, 42001];
+        for code in error_codes {
+            let response = TokenResponse {
+                access_token: String::new(),
+                expires_in: 0,
+                errcode: code,
+                errmsg: "error".to_string(),
+            };
+            assert!(
+                !response.is_success(),
+                "Error code {} should indicate failure",
+                code
+            );
+        }
+    }
+
     #[tokio::test]
     async fn test_invalidate() {
         let client = create_test_client();
@@ -486,6 +514,32 @@ mod tests {
         manager.invalidate().await;
 
         assert!(manager.cache.read().await.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_invalidate_clears_cache() {
+        let client = create_test_client();
+        let manager = TokenManager::new(client);
+
+        let token = AccessToken::new("test_token").unwrap();
+        let cached = CachedToken {
+            token,
+            expires_at: Instant::now() + Duration::from_secs(7200),
+        };
+        *manager.cache.write().await = Some(cached);
+
+        assert!(manager.cache.read().await.is_some());
+
+        manager.invalidate().await;
+
+        assert!(manager.cache.read().await.is_none());
+    }
+
+    #[test]
+    fn test_default_refresh_buffer() {
+        let client = create_test_client();
+        let manager = TokenManager::new(client);
+        assert_eq!(manager.refresh_buffer, Duration::from_secs(300));
     }
 
     #[tokio::test]
@@ -533,5 +587,74 @@ mod tests {
         }
 
         assert_eq!(call_count.load(Ordering::SeqCst), 1);
+    }
+
+    #[tokio::test]
+    async fn test_fetch_token_with_retry_retries_retryable_errors_then_succeeds() {
+        let mock_server = MockServer::start().await;
+        let call_count = Arc::new(AtomicU32::new(0));
+        let call_count_clone = Arc::clone(&call_count);
+
+        Mock::given(method("GET"))
+            .and(path("/cgi-bin/token"))
+            .and(query_param("grant_type", "client_credential"))
+            .respond_with(move |_request: &wiremock::Request| {
+                let current = call_count_clone.fetch_add(1, Ordering::SeqCst);
+                if current < 2 {
+                    ResponseTemplate::new(500)
+                } else {
+                    ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                        "access_token": "retry_success_token",
+                        "expires_in": 7200,
+                        "errcode": 0,
+                        "errmsg": ""
+                    }))
+                }
+            })
+            .mount(&mock_server)
+            .await;
+
+        let client = create_test_client_with_base_url(&mock_server.uri());
+        let manager = TokenManager::builder(client)
+            .max_retries(3)
+            .retry_delay_ms(1)
+            .build();
+
+        let response = manager.fetch_token_with_retry().await.unwrap();
+
+        assert_eq!(response.access_token, "retry_success_token");
+        assert_eq!(response.expires_in, 7200);
+        assert_eq!(call_count.load(Ordering::SeqCst), 3);
+    }
+
+    #[test]
+    fn test_token_manager_builder_defaults() {
+        let client = create_test_client();
+        let manager = TokenManager::builder(client).build();
+        assert_eq!(manager.refresh_buffer, Duration::from_secs(300));
+        assert_eq!(manager.max_retries, 3);
+        assert_eq!(manager.retry_delay_ms, 100);
+    }
+
+    #[test]
+    fn test_token_manager_builder_custom_values() {
+        let client = create_test_client();
+        let manager = TokenManager::builder(client)
+            .max_retries(5)
+            .retry_delay_ms(200)
+            .refresh_buffer_secs(600)
+            .build();
+        assert_eq!(manager.refresh_buffer, Duration::from_secs(600));
+        assert_eq!(manager.max_retries, 5);
+        assert_eq!(manager.retry_delay_ms, 200);
+    }
+
+    #[test]
+    fn test_token_manager_builder_partial_custom() {
+        let client = create_test_client();
+        let manager = TokenManager::builder(client).max_retries(10).build();
+        assert_eq!(manager.max_retries, 10);
+        assert_eq!(manager.retry_delay_ms, 100);
+        assert_eq!(manager.refresh_buffer, Duration::from_secs(300));
     }
 }

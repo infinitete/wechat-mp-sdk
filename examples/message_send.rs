@@ -8,37 +8,32 @@
 use std::collections::HashMap;
 
 use wechat_mp_sdk::{
-    api::message::{Message, MessageApi, SubscribeMessageValue, TextMessage},
-    token::TokenManager,
-    types::{AppId, AppSecret},
-    WechatClient,
+    api::{Message, SubscribeMessageOptions, SubscribeMessageValue, TextMessage},
+    types::{AppId, AppSecret, OpenId},
+    WechatMp,
 };
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let appid = AppId::new("wx1234567890abcdef")?;
-    let secret = AppSecret::new("your_app_secret_here")?;
-
-    let client = WechatClient::builder()
-        .appid(appid)
-        .secret(secret)
+    let wechat = WechatMp::builder()
+        .appid(AppId::new("wx1234567890abcdef")?)
+        .secret(AppSecret::new("your_app_secret_here")?)
         .build()?;
 
-    let token_manager = TokenManager::new(client.clone());
-    let message_api = MessageApi::new(client);
-
+    // Send customer service text message
     let text_message = Message::Text {
         text: TextMessage::new("Hello from Rust SDK!"),
     };
 
-    match message_api
-        .send_customer_service_message(&token_manager, "user_openid", text_message)
+    match wechat
+        .send_customer_service_message("user_openid", text_message)
         .await
     {
         Ok(_) => println!("Customer service message sent!"),
         Err(e) => eprintln!("Failed to send: {}", e),
     }
 
+    // Send subscribe message
     let mut data = HashMap::new();
     data.insert(
         "thing1".to_string(),
@@ -47,16 +42,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         },
     );
 
-    match message_api
-        .send_subscribe_message(
-            &token_manager,
-            "user_openid",
-            "template_id",
-            data,
-            Some("pages/index"),
-        )
-        .await
-    {
+    let options = SubscribeMessageOptions {
+        touser: OpenId::new("o_user_openid_12345678901").unwrap(),
+        template_id: "template_id".to_string(),
+        data,
+        page: Some("pages/index".to_string()),
+        miniprogram_state: None,
+        lang: None,
+    };
+
+    match wechat.send_subscribe_message(options).await {
         Ok(_) => println!("Subscribe message sent!"),
         Err(e) => eprintln!("Failed to send: {}", e),
     }

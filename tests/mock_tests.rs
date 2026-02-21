@@ -3,8 +3,11 @@
 //! These tests mock the WeChat API responses to verify request parameters
 //! and response parsing without making real network calls.
 
+use std::sync::Arc;
+
 use wechat_mp_sdk::api::auth::AuthApi;
 use wechat_mp_sdk::api::user::UserApi;
+use wechat_mp_sdk::api::WechatContext;
 use wechat_mp_sdk::client::WechatClient;
 use wechat_mp_sdk::token::TokenManager;
 use wechat_mp_sdk::types::{AppId, AppSecret};
@@ -22,6 +25,16 @@ async fn create_test_client(mock_server: &MockServer) -> WechatClient {
         .base_url(mock_server.uri())
         .build()
         .unwrap()
+}
+
+/// Create a test WechatContext pointing to the mock server
+async fn create_test_context(mock_server: &MockServer) -> Arc<WechatContext> {
+    let client = create_test_client(mock_server).await;
+    let token_manager = TokenManager::new(client.clone());
+    Arc::new(WechatContext::new(
+        Arc::new(client),
+        Arc::new(token_manager),
+    ))
 }
 
 /// Test successful access token retrieval with mock
@@ -70,8 +83,8 @@ async fn test_mock_login() {
         .mount(&mock_server)
         .await;
 
-    let client = create_test_client(&mock_server).await;
-    let auth_api = AuthApi::new(client);
+    let context = create_test_context(&mock_server).await;
+    let auth_api = AuthApi::new(context);
 
     let response = auth_api.login("test_code_12345").await.unwrap();
 
@@ -99,8 +112,8 @@ async fn test_mock_login_error() {
         .mount(&mock_server)
         .await;
 
-    let client = create_test_client(&mock_server).await;
-    let auth_api = AuthApi::new(client);
+    let context = create_test_context(&mock_server).await;
+    let auth_api = AuthApi::new(context);
 
     let result = auth_api.login("invalid_code").await;
 
@@ -142,14 +155,10 @@ async fn test_mock_get_phone_number() {
         .mount(&mock_server)
         .await;
 
-    let client = create_test_client(&mock_server).await;
-    let token_manager = TokenManager::new(client.clone());
-    let user_api = UserApi::new(client);
+    let context = create_test_context(&mock_server).await;
+    let user_api = UserApi::new(context);
 
-    let response = user_api
-        .get_phone_number(&token_manager, "phone_code")
-        .await
-        .unwrap();
+    let response = user_api.get_phone_number("phone_code").await.unwrap();
 
     // Verify phone info
     assert_eq!(response.phone_info.pure_phone_number, "13800138000");
@@ -203,8 +212,8 @@ async fn test_mock_login_request_parameters() {
         .mount(&mock_server)
         .await;
 
-    let client = create_test_client(&mock_server).await;
-    let auth_api = AuthApi::new(client);
+    let context = create_test_context(&mock_server).await;
+    let auth_api = AuthApi::new(context);
 
     let response = auth_api.login("my_test_code").await.unwrap();
 
@@ -236,13 +245,10 @@ async fn test_mock_phone_number_error() {
         .mount(&mock_server)
         .await;
 
-    let client = create_test_client(&mock_server).await;
-    let token_manager = TokenManager::new(client.clone());
-    let user_api = UserApi::new(client);
+    let context = create_test_context(&mock_server).await;
+    let user_api = UserApi::new(context);
 
-    let result = user_api
-        .get_phone_number(&token_manager, "invalid_code")
-        .await;
+    let result = user_api.get_phone_number("invalid_code").await;
 
     assert!(result.is_err());
 }
@@ -291,8 +297,8 @@ async fn test_mock_login_response_formats() {
         .mount(&mock_server)
         .await;
 
-    let client = create_test_client(&mock_server).await;
-    let auth_api = AuthApi::new(client);
+    let context = create_test_context(&mock_server).await;
+    let auth_api = AuthApi::new(context);
 
     let response = auth_api.login("code_no_unionid").await.unwrap();
 
