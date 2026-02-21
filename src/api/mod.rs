@@ -10,6 +10,24 @@
 //! - [`qrcode`] - Mini Program codes, QR codes, and URL links
 //! - [`template`] - Template message management
 //! - [`user`] - User information and phone number
+//! - [`openapi`] - OpenAPI quota and diagnostic management
+//! - [`wechat_kf`] - WeChat open customer service account binding
+//! - [`security`] - Content security checks
+//! - [`analytics`] - Data analytics and visit trends
+//! - [`operations`] - Mini program operations and logs
+//! - [`plugin`] - Plugin application management
+//! - [`nearby`] - Nearby points of interest
+//! - [`cloud`] - WeChat Cloud Base (TCB)
+//! - [`live`] - Live streaming rooms and goods
+//! - [`hardware`] - IoT hardware device messaging
+//! - [`ocr`] - Image processing and OCR
+//! - [`delivery`] - Instant/local delivery orders
+//! - [`logistics`] - Express delivery and tracking
+//! - [`service_market`] - WeChat service marketplace
+//! - [`soter`] - SOTER biometric authentication
+//! - [`face`] - Face identity verification
+//! - [`wxsearch`] - WeChat search page submission
+//! - [`advertising`] - Advertising user action tracking
 //!
 //! ## Usage
 //!
@@ -17,16 +35,34 @@
 //! use wechat_mp_sdk::{WechatMp, types::{AppId, AppSecret}};
 //! ```
 
+pub mod advertising;
+pub mod analytics;
 pub mod auth;
+pub mod cloud;
 pub mod common;
 pub mod customer_service;
+pub mod delivery;
 pub mod endpoint_inventory;
+pub mod face;
+pub mod hardware;
+pub mod live;
+pub mod logistics;
 pub mod media;
+pub mod nearby;
+pub mod ocr;
+pub mod openapi;
+pub mod operations;
+pub mod plugin;
 pub mod qrcode;
+pub mod security;
+pub mod service_market;
+pub mod soter;
 pub mod subscribe;
 pub mod template;
 pub mod r#trait;
 pub mod user;
+pub mod wechat_kf;
+pub mod wxsearch;
 
 pub use common::{
     ApiResponseBase, DateRangeRequest, PaginatedRequest, PaginatedResponse, WechatApiResponse,

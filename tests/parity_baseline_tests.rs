@@ -872,3 +872,247 @@ mod inventory_baseline {
         }
     }
 }
+
+mod coverage_matrix {
+    use wechat_mp_sdk::api::endpoint_inventory::get_endpoint_inventory;
+
+    #[derive(Debug, Clone, Copy)]
+    struct CoverageStats {
+        total_endpoints: usize,
+        implemented: usize,
+        missing_non_deprecated: usize,
+        deprecated: usize,
+    }
+
+    fn collect_coverage_stats() -> CoverageStats {
+        let inventory = get_endpoint_inventory();
+        let total_endpoints = inventory.len();
+        let implemented = inventory.iter().filter(|item| item.implemented).count();
+        let deprecated = inventory.iter().filter(|item| item.deprecated).count();
+        let missing_non_deprecated = inventory
+            .iter()
+            .filter(|item| !item.deprecated && !item.implemented)
+            .count();
+
+        CoverageStats {
+            total_endpoints,
+            implemented,
+            missing_non_deprecated,
+            deprecated,
+        }
+    }
+
+    fn coverage_percent(stats: CoverageStats) -> f64 {
+        let active_total = stats.total_endpoints.saturating_sub(stats.deprecated);
+        if active_total == 0 {
+            return 100.0;
+        }
+
+        let implemented_active = stats.implemented.saturating_sub(stats.deprecated);
+        (implemented_active as f64 / active_total as f64) * 100.0
+    }
+
+    #[test]
+    fn coverage_report_prints_summary() {
+        let stats = collect_coverage_stats();
+        let percent = coverage_percent(stats);
+
+        println!("COVERAGE REPORT:");
+        println!("total_endpoints={}", stats.total_endpoints);
+        println!("implemented={}", stats.implemented);
+        println!("missing_non_deprecated={}", stats.missing_non_deprecated);
+        println!("deprecated={}", stats.deprecated);
+        println!("coverage_percent={percent:.2}%");
+
+        assert!(
+            stats.total_endpoints > 0,
+            "endpoint inventory must not be empty"
+        );
+    }
+
+    #[test]
+    #[ignore = "Enable when all non-deprecated endpoints are implemented"]
+    fn non_deprecated_missing_endpoints_zero() {
+        let stats = collect_coverage_stats();
+        assert_eq!(
+            stats.missing_non_deprecated, 0,
+            "non-deprecated endpoint coverage must be 100%"
+        );
+    }
+
+    #[test]
+    fn fails_when_endpoint_unmapped() {
+        let stats = collect_coverage_stats();
+        assert!(
+            stats.missing_non_deprecated > 0,
+            "expected at least one non-deprecated endpoint to be unmapped; if this fails, remove #[ignore] from non_deprecated_missing_endpoints_zero"
+        );
+    }
+}
+
+// =============================================================================
+// FACADE GUARD TESTS
+// =============================================================================
+
+mod facade_guards {
+    //! Guard tests that verify the WechatMp facade stays in sync with the
+    //! endpoint inventory. These tests detect when a new API module method
+    //! exists (implemented: true) but has no corresponding facade method.
+
+    use std::collections::{HashMap, HashSet};
+
+    use wechat_mp_sdk::api::endpoint_inventory::get_endpoint_inventory;
+
+    /// Maps endpoint_id -> facade method name for all currently-implemented endpoints.
+    ///
+    /// MAINTENANCE: When you set `implemented: true` for a new endpoint in
+    /// `endpoint_inventory.rs`, you MUST add a corresponding entry here AND
+    /// add the facade method to `WechatMp` in `src/client/wechat_mp.rs`.
+    const FACADE_METHOD_MAP: &[(&str, &str)] = &[
+        ("accessToken.getAccessToken", "get_access_token"),
+        ("auth.code2Session", "auth_login"),
+        ("user.getPhoneNumber", "get_phone_number"),
+        ("qrcode.getQRCode", "get_wxa_code"),
+        ("qrcode.getUnlimitedQRCode", "get_wxa_code_unlimit"),
+        ("qrcode.createQRCode", "create_qrcode"),
+        ("qrcode.generateScheme", "generate_url_scheme"),
+        ("qrcode.generateUrlLink", "generate_url_link"),
+        ("qrcode.generateShortLink", "generate_short_link"),
+        (
+            "customerService.sendCustomMessage",
+            "send_customer_service_message",
+        ),
+        ("customerService.uploadTempMedia", "upload_temp_media"),
+        ("customerService.getTempMedia", "get_temp_media"),
+        ("subscribe.sendMessage", "send_subscribe_message"),
+        ("subscribe.addMessageTemplate", "add_template"),
+        ("subscribe.deleteMessageTemplate", "delete_template"),
+        ("subscribe.getCategory", "get_category"),
+        ("subscribe.getMessageTemplateList", "get_template_list"),
+    ];
+
+    /// Verifies that every currently-implemented endpoint in the inventory has
+    /// a corresponding entry in FACADE_METHOD_MAP.
+    ///
+    /// If this test fails, it means a new endpoint was marked `implemented: true`
+    /// in the inventory but no facade method mapping was added here.
+    #[test]
+    fn facade_has_all_currently_implemented_methods() {
+        let inventory = get_endpoint_inventory();
+
+        // Build a set of endpoint_ids that are implemented (non-deprecated)
+        let implemented_ids: HashSet<&str> = inventory
+            .iter()
+            .filter(|item| item.implemented && !item.deprecated)
+            .map(|item| item.endpoint_id)
+            .collect();
+
+        // Build a set of endpoint_ids covered by the facade map
+        let facade_covered_ids: HashSet<&str> = FACADE_METHOD_MAP
+            .iter()
+            .map(|(endpoint_id, _)| *endpoint_id)
+            .collect();
+
+        // Every implemented endpoint must have a facade mapping
+        let mut missing_from_facade: Vec<&str> = implemented_ids
+            .difference(&facade_covered_ids)
+            .copied()
+            .collect();
+
+        if !missing_from_facade.is_empty() {
+            missing_from_facade.sort();
+            panic!(
+                "GUARD FAILURE: {} implemented endpoint(s) have no facade method mapping:\n  - {}\n\nAdd entries to FACADE_METHOD_MAP in tests/parity_baseline_tests.rs\nAND add the corresponding facade method to WechatMp in src/client/wechat_mp.rs",
+                missing_from_facade.len(),
+                missing_from_facade.join("\n  - "),
+            );
+        }
+    }
+
+    /// Verifies that FACADE_METHOD_MAP doesn't reference endpoint_ids that
+    /// don't exist in the inventory (prevents stale entries).
+    #[test]
+    fn facade_map_has_no_phantom_endpoints() {
+        let inventory = get_endpoint_inventory();
+
+        let all_inventory_ids: HashSet<&str> =
+            inventory.iter().map(|item| item.endpoint_id).collect();
+
+        let mut phantom_entries = Vec::new();
+        for (endpoint_id, facade_method) in FACADE_METHOD_MAP {
+            if !all_inventory_ids.contains(endpoint_id) {
+                phantom_entries.push(format!("{} -> {}", endpoint_id, facade_method));
+            }
+        }
+
+        assert!(
+            phantom_entries.is_empty(),
+            "GUARD FAILURE: FACADE_METHOD_MAP references endpoint_ids not in inventory:\n  - {}\n",
+            phantom_entries.join("\n  - ")
+        );
+    }
+
+    /// Verifies that FACADE_METHOD_MAP has no duplicate endpoint_id entries.
+    #[test]
+    fn facade_map_has_no_duplicate_entries() {
+        let mut seen: HashMap<&str, &str> = HashMap::new();
+        let mut duplicates = Vec::new();
+
+        for (endpoint_id, facade_method) in FACADE_METHOD_MAP {
+            if let Some(existing) = seen.insert(endpoint_id, facade_method) {
+                duplicates.push(format!(
+                    "'{}' appears twice: '{}' and '{}'",
+                    endpoint_id, existing, facade_method
+                ));
+            }
+        }
+
+        assert!(
+            duplicates.is_empty(),
+            "GUARD FAILURE: FACADE_METHOD_MAP has duplicate entries:\n  - {}\n",
+            duplicates.join("\n  - ")
+        );
+    }
+
+    /// Compile-time guard: verifies existing facade methods still exist on WechatMp.
+    ///
+    /// If this test fails to compile, a facade method was removed or renamed.
+    /// Taking a reference to a method is sufficient to verify it exists at compile time.
+    #[test]
+    fn existing_facade_methods_are_backward_compatible() {
+        use wechat_mp_sdk::WechatMp;
+
+        // Verify methods exist by taking unambiguous references to them.
+        // This is a compile-time check - if any method is removed or renamed,
+        // this test will fail to compile.
+        let _methods: &[*const ()] = &[
+            WechatMp::get_access_token as *const (),
+            WechatMp::auth_login as *const (),
+            WechatMp::get_phone_number as *const (),
+            WechatMp::send_customer_service_message as *const (),
+            WechatMp::get_template_list as *const (),
+            WechatMp::add_template as *const (),
+            WechatMp::delete_template as *const (),
+            WechatMp::get_category as *const (),
+            WechatMp::send_subscribe_message as *const (),
+            WechatMp::get_wxa_code as *const (),
+            WechatMp::get_wxa_code_unlimit as *const (),
+            WechatMp::create_qrcode as *const (),
+            WechatMp::generate_url_scheme as *const (),
+            WechatMp::generate_url_link as *const (),
+            WechatMp::generate_short_link as *const (),
+            WechatMp::upload_temp_media as *const (),
+            WechatMp::get_temp_media as *const (),
+            WechatMp::invalidate_token as *const (),
+        ];
+
+        // Verify the sync method with a typed function pointer (no lifetime issues)
+        let _: fn(&WechatMp) -> &str = WechatMp::appid;
+
+        // If we reach here, all methods exist with compatible signatures
+        println!(
+            "All {} facade methods verified at compile time",
+            FACADE_METHOD_MAP.len()
+        );
+    }
+}
