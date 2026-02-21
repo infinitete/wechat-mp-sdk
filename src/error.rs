@@ -20,4 +20,7 @@ pub enum WechatError {
 
     #[error("Signature verification failed: {0}")]
     Signature(String),
+
+    #[error("Crypto operation error: {0}")]
+    Crypto(String),
 }
