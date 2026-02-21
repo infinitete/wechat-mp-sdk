@@ -35,7 +35,7 @@ pub const ENDPOINT_INVENTORY: &[EndpointInventoryItem] = &[
         "POST",
         "/cgi-bin/stable_token",
         false,
-        false,
+        true,
         EndpointPriority::Core,
     ),
     item(
@@ -44,7 +44,7 @@ pub const ENDPOINT_INVENTORY: &[EndpointInventoryItem] = &[
         "POST",
         "/cgi-bin/clear_quota",
         false,
-        false,
+        true,
         EndpointPriority::Core,
     ),
     item(
@@ -53,7 +53,7 @@ pub const ENDPOINT_INVENTORY: &[EndpointInventoryItem] = &[
         "POST",
         "/cgi-bin/openapi/quota/get",
         false,
-        false,
+        true,
         EndpointPriority::Core,
     ),
     item(
@@ -62,7 +62,7 @@ pub const ENDPOINT_INVENTORY: &[EndpointInventoryItem] = &[
         "POST",
         "/cgi-bin/openapi/quota/clear",
         false,
-        false,
+        true,
         EndpointPriority::Extended,
     ),
     item(
@@ -71,7 +71,7 @@ pub const ENDPOINT_INVENTORY: &[EndpointInventoryItem] = &[
         "POST",
         "/cgi-bin/clear_quota/v2",
         false,
-        false,
+        true,
         EndpointPriority::Extended,
     ),
     item(
@@ -80,7 +80,7 @@ pub const ENDPOINT_INVENTORY: &[EndpointInventoryItem] = &[
         "POST",
         "/cgi-bin/openapi/rid/get",
         false,
-        false,
+        true,
         EndpointPriority::Core,
     ),
     item(
@@ -89,7 +89,7 @@ pub const ENDPOINT_INVENTORY: &[EndpointInventoryItem] = &[
         "POST",
         "/cgi-bin/callback/check",
         false,
-        false,
+        true,
         EndpointPriority::Extended,
     ),
     item(
@@ -98,7 +98,7 @@ pub const ENDPOINT_INVENTORY: &[EndpointInventoryItem] = &[
         "GET",
         "/cgi-bin/get_api_domain_ip",
         false,
-        false,
+        true,
         EndpointPriority::Extended,
     ),
     item(
@@ -107,7 +107,7 @@ pub const ENDPOINT_INVENTORY: &[EndpointInventoryItem] = &[
         "GET",
         "/cgi-bin/getcallbackip",
         false,
-        false,
+        true,
         EndpointPriority::Extended,
     ),
     item(

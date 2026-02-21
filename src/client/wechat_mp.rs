@@ -3,6 +3,10 @@
 use std::sync::Arc;
 
 use crate::api::auth::LoginResponse;
+use crate::api::auth::StableAccessTokenResponse;
+use crate::api::openapi::{
+    ApiQuotaResponse, CallbackCheckResponse, IpListResponse, OpenApiApi, RidInfoResponse,
+};
 use crate::api::qrcode::{
     QrcodeApi, QrcodeOptions, ShortLinkOptions, UnlimitQrcodeOptions, UrlLinkOptions,
     UrlSchemeOptions,
@@ -71,6 +75,15 @@ impl WechatMp {
     pub async fn auth_login(&self, js_code: &str) -> Result<LoginResponse, WechatError> {
         crate::api::auth::AuthApi::new(self.context.clone())
             .login(js_code)
+            .await
+    }
+
+    pub async fn get_stable_access_token(
+        &self,
+        force_refresh: bool,
+    ) -> Result<StableAccessTokenResponse, WechatError> {
+        crate::api::auth::AuthApi::new(self.context.clone())
+            .get_stable_access_token(force_refresh)
             .await
     }
 
@@ -193,6 +206,58 @@ impl WechatMp {
     ) -> Result<String, WechatError> {
         QrcodeApi::new(self.context.clone())
             .generate_short_link(options)
+            .await
+    }
+
+    // OpenApi Management
+
+    pub async fn clear_quota(&self) -> Result<(), WechatError> {
+        OpenApiApi::new(self.context.clone()).clear_quota().await
+    }
+
+    pub async fn get_api_quota(&self, cgi_path: &str) -> Result<ApiQuotaResponse, WechatError> {
+        OpenApiApi::new(self.context.clone())
+            .get_api_quota(cgi_path)
+            .await
+    }
+
+    pub async fn clear_api_quota(&self, cgi_path: &str) -> Result<(), WechatError> {
+        OpenApiApi::new(self.context.clone())
+            .clear_api_quota(cgi_path)
+            .await
+    }
+
+    pub async fn clear_quota_by_app_secret(&self) -> Result<(), WechatError> {
+        OpenApiApi::new(self.context.clone())
+            .clear_quota_by_app_secret()
+            .await
+    }
+
+    pub async fn get_rid_info(&self, rid: &str) -> Result<RidInfoResponse, WechatError> {
+        OpenApiApi::new(self.context.clone())
+            .get_rid_info(rid)
+            .await
+    }
+
+    pub async fn callback_check(
+        &self,
+        action: &str,
+        check_operator: &str,
+    ) -> Result<CallbackCheckResponse, WechatError> {
+        OpenApiApi::new(self.context.clone())
+            .callback_check(action, check_operator)
+            .await
+    }
+
+    pub async fn get_api_domain_ip(&self) -> Result<IpListResponse, WechatError> {
+        OpenApiApi::new(self.context.clone())
+            .get_api_domain_ip()
+            .await
+    }
+
+    pub async fn get_callback_ip(&self) -> Result<IpListResponse, WechatError> {
+        OpenApiApi::new(self.context.clone())
+            .get_callback_ip()
             .await
     }
 

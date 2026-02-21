@@ -989,6 +989,18 @@ mod facade_guards {
         ("subscribe.deleteMessageTemplate", "delete_template"),
         ("subscribe.getCategory", "get_category"),
         ("subscribe.getMessageTemplateList", "get_template_list"),
+        (
+            "accessToken.getStableAccessToken",
+            "get_stable_access_token",
+        ),
+        ("openapi.clearQuota", "clear_quota"),
+        ("openapi.getApiQuota", "get_api_quota"),
+        ("openapi.clearApiQuota", "clear_api_quota"),
+        ("openapi.clearQuotaByAppSecret", "clear_quota_by_app_secret"),
+        ("openapi.getRidInfo", "get_rid_info"),
+        ("openapi.callbackCheck", "callback_check"),
+        ("openapi.getApiDomainIp", "get_api_domain_ip"),
+        ("openapi.getCallbackIp", "get_callback_ip"),
     ];
 
     /// Verifies that every currently-implemented endpoint in the inventory has
@@ -1104,6 +1116,15 @@ mod facade_guards {
             WechatMp::upload_temp_media as *const (),
             WechatMp::get_temp_media as *const (),
             WechatMp::invalidate_token as *const (),
+            WechatMp::get_stable_access_token as *const (),
+            WechatMp::clear_quota as *const (),
+            WechatMp::get_api_quota as *const (),
+            WechatMp::clear_api_quota as *const (),
+            WechatMp::clear_quota_by_app_secret as *const (),
+            WechatMp::get_rid_info as *const (),
+            WechatMp::callback_check as *const (),
+            WechatMp::get_api_domain_ip as *const (),
+            WechatMp::get_callback_ip as *const (),
         ];
 
         // Verify the sync method with a typed function pointer (no lifetime issues)
