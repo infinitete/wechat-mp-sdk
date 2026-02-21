@@ -1,19 +1,36 @@
 //! WeChat Mini Program SDK for Rust
 //!
-//! A Rust SDK for interacting with the WeChat Mini Program APIs.
+//! A complete Rust SDK for the WeChat Mini Program server-side APIs,
+//! covering **128 endpoints** across 24 categories.
 //!
-//! ## Features
+//! ## API Coverage
 //!
-//! - Login authentication via code2Session
-//! - User information decryption
-//! - Phone number retrieval
-//! - Automatic access token management with caching
-//! - Mini Program code and QR code generation
-//! - URL Scheme/Link generation
-//! - Short link generation
-//! - Customer service message sending
-//! - Subscribe message sending
-//! - Template message management
+//! | Category | Endpoints |
+//! |----------|-----------|
+//! | Login / Session | 3 |
+//! | Access Token | 2 |
+//! | OpenAPI Management | 8 |
+//! | Security | 3 |
+//! | User Info | 5 |
+//! | QR Code / Links | 9 |
+//! | Customer Service | 4 |
+//! | Subscribe Messages | 10 |
+//! | Analytics | 11 |
+//! | Operations | 10 |
+//! | Image / OCR | 8 |
+//! | Plugin | 2 |
+//! | Nearby Mini Programs | 4 |
+//! | Cloud Development | 10 |
+//! | Live Streaming | 9 |
+//! | Hardware / IoT | 6 |
+//! | Instant Delivery | 5 |
+//! | Logistics | 6 |
+//! | Service Market | 1 |
+//! | Biometric Auth | 1 |
+//! | Face Verification | 2 |
+//! | WeChat Search | 1 |
+//! | Advertising | 4 |
+//! | WeChat KF | 3 |
 //!
 //! ## Quick Start
 //!
@@ -27,14 +44,21 @@
 //!         .secret(AppSecret::new("your_secret")?)
 //!         .build()?;
 //!
-//!     // Use the client with API modules...
+//!     // Login with code from wx.login()
+//!     let session = wechat.auth_login("code_from_miniprogram").await?;
+//!     println!("OpenID: {}", session.openid);
+//!
+//!     // Get phone number
+//!     let phone = wechat.get_phone_number("code_from_getPhoneNumber").await?;
+//!     println!("Phone: {}", phone.phone_info.phone_number);
+//!
 //!     Ok(())
 //! }
 //! ```
 //!
 //! ## Modules
 //!
-//! - [`api`] - WeChat API modules (auth, user, message, qrcode)
+//! - [`api`] - WeChat API modules (auth, user, message, qrcode, analytics, etc.)
 //! - [`client`] - HTTP client for API calls
 //! - [`crypto`] - Data decryption utilities
 //! - [`error`] - Error types
