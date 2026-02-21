@@ -146,7 +146,7 @@ impl WechatClientBuilder {
 
     /// Set the base URL for API calls
     ///
-    /// Default: "https://api.weixin.qq.com"
+    /// Default: `<https://api.weixin.qq.com>`
     pub fn base_url(mut self, url: impl Into<String>) -> Self {
         self.base_url = Some(url.into());
         self
