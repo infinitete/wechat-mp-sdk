@@ -3,14 +3,17 @@
 //! These tests mock the WeChat API responses to verify request parameters
 //! and response parsing without making real network calls.
 
+use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Arc;
 
 use wechat_mp_sdk::api::auth::AuthApi;
+use wechat_mp_sdk::api::media::MediaApi;
 use wechat_mp_sdk::api::user::UserApi;
 use wechat_mp_sdk::api::WechatContext;
 use wechat_mp_sdk::client::WechatClient;
 use wechat_mp_sdk::token::TokenManager;
 use wechat_mp_sdk::types::{AppId, AppSecret};
+use wechat_mp_sdk::WechatError;
 use wiremock::matchers::{method, path, query_param};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
@@ -305,4 +308,177 @@ async fn test_mock_login_response_formats() {
     // Should parse correctly
     assert!(response.unionid.is_none());
     assert!(response.is_success());
+}
+
+#[tokio::test]
+async fn test_execute_returns_api_error_for_errcode_non_zero_json() {
+    let mock_server = MockServer::start().await;
+
+    Mock::given(method("GET"))
+        .and(path("/cgi-bin/test-api-error"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "errcode": 40013,
+            "errmsg": "invalid appid"
+        })))
+        .mount(&mock_server)
+        .await;
+
+    let client = create_test_client(&mock_server).await;
+    let result = client
+        .get::<serde_json::Value>("/cgi-bin/test-api-error", &[])
+        .await;
+
+    match result {
+        Err(WechatError::Api { code, message }) => {
+            assert_eq!(code, 40013);
+            assert_eq!(message, "invalid appid");
+        }
+        other => panic!("expected WechatError::Api, got: {:?}", other),
+    }
+}
+
+#[tokio::test]
+async fn test_media_get_temp_media_returns_bytes_for_image_jpeg_content_type() {
+    let mock_server = MockServer::start().await;
+
+    Mock::given(method("GET"))
+        .and(path("/cgi-bin/token"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "access_token": "mock_media_token",
+            "expires_in": 7200
+        })))
+        .mount(&mock_server)
+        .await;
+
+    Mock::given(method("GET"))
+        .and(path("/cgi-bin/media/get"))
+        .and(query_param("access_token", "mock_media_token"))
+        .and(query_param("media_id", "jpeg_media"))
+        .respond_with(ResponseTemplate::new(200).set_body_raw(b"jpeg_bytes", "image/jpeg"))
+        .mount(&mock_server)
+        .await;
+
+    let context = create_test_context(&mock_server).await;
+    let media_api = MediaApi::new(context);
+
+    let result = media_api.get_temp_media("jpeg_media").await;
+
+    assert!(result.is_ok());
+    assert_eq!(result.unwrap(), b"jpeg_bytes");
+}
+
+#[tokio::test]
+async fn test_media_get_temp_media_returns_api_error_for_application_json() {
+    let mock_server = MockServer::start().await;
+
+    Mock::given(method("GET"))
+        .and(path("/cgi-bin/token"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "access_token": "mock_media_token",
+            "expires_in": 7200
+        })))
+        .mount(&mock_server)
+        .await;
+
+    Mock::given(method("GET"))
+        .and(path("/cgi-bin/media/get"))
+        .and(query_param("access_token", "mock_media_token"))
+        .and(query_param("media_id", "json_error_media"))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .insert_header("content-type", "application/json")
+                .set_body_json(serde_json::json!({
+                    "errcode": 40007,
+                    "errmsg": "invalid media_id"
+                })),
+        )
+        .mount(&mock_server)
+        .await;
+
+    let context = create_test_context(&mock_server).await;
+    let media_api = MediaApi::new(context);
+
+    let result = media_api.get_temp_media("json_error_media").await;
+
+    match result {
+        Err(WechatError::Api { code, message }) => {
+            assert_eq!(code, 40007);
+            assert_eq!(message, "invalid media_id");
+        }
+        other => panic!("expected WechatError::Api, got: {:?}", other),
+    }
+}
+
+#[tokio::test]
+async fn test_fetch_token_with_retry_current_behavior_retries_http_errors_then_succeeds() {
+    let mock_server = MockServer::start().await;
+    let call_count = Arc::new(AtomicU32::new(0));
+    let call_count_clone = Arc::clone(&call_count);
+
+    Mock::given(method("GET"))
+        .and(path("/cgi-bin/token"))
+        .respond_with(move |_request: &wiremock::Request| {
+            let current = call_count_clone.fetch_add(1, Ordering::SeqCst);
+            if current < 2 {
+                ResponseTemplate::new(500)
+            } else {
+                ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                    "access_token": "retryable_api_success_token",
+                    "expires_in": 7200,
+                    "errcode": 0,
+                    "errmsg": "ok"
+                }))
+            }
+        })
+        .mount(&mock_server)
+        .await;
+
+    let client = create_test_client(&mock_server).await;
+    let token_manager = TokenManager::builder(client)
+        .max_retries(3)
+        .retry_delay_ms(1)
+        .build();
+
+    let token = token_manager.get_token().await.unwrap();
+
+    assert_eq!(token, "retryable_api_success_token");
+    assert_eq!(call_count.load(Ordering::SeqCst), 3);
+}
+
+#[tokio::test]
+async fn test_fetch_token_with_retry_current_behavior_does_not_retry_non_retryable_api_error() {
+    let mock_server = MockServer::start().await;
+    let call_count = Arc::new(AtomicU32::new(0));
+    let call_count_clone = Arc::clone(&call_count);
+
+    Mock::given(method("GET"))
+        .and(path("/cgi-bin/token"))
+        .respond_with(move |_request: &wiremock::Request| {
+            call_count_clone.fetch_add(1, Ordering::SeqCst);
+            ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "access_token": "",
+                "expires_in": 0,
+                "errcode": 40013,
+                "errmsg": "invalid appid"
+            }))
+        })
+        .mount(&mock_server)
+        .await;
+
+    let client = create_test_client(&mock_server).await;
+    let token_manager = TokenManager::builder(client)
+        .max_retries(3)
+        .retry_delay_ms(1)
+        .build();
+
+    let result = token_manager.get_token().await;
+
+    match result {
+        Err(WechatError::Api { code, message }) => {
+            assert_eq!(code, 40013);
+            assert_eq!(message, "invalid appid");
+        }
+        other => panic!("expected WechatError::Api, got: {:?}", other),
+    }
+    assert_eq!(call_count.load(Ordering::SeqCst), 1);
 }

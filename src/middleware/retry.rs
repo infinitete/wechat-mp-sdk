@@ -290,6 +290,14 @@ mod tests {
     }
 
     #[test]
+    fn test_decode_error_currently_retryable() {
+        use crate::error::HttpError;
+
+        let decode_err = WechatError::Http(HttpError::Decode("baseline decode error".to_string()));
+        assert!(RetryMiddleware::is_retryable_error(&decode_err));
+    }
+
+    #[test]
     fn test_middleware_configuration() {
         let middleware = RetryMiddleware::new()
             .with_max_retries(5)
