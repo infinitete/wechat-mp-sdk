@@ -40,9 +40,9 @@ impl WxsearchApi {
         request: &SubmitPagesRequest,
     ) -> Result<SubmitPagesResponse, WechatError> {
         let access_token = self.context.token_manager.get_token().await?;
-        let path = format!(
+        let path = crate::client::WechatClient::append_access_token(
             "/wxa/search/wxaapi_submitpages?access_token={}",
-            access_token
+            &access_token,
         );
         let response: SubmitPagesResponse = self.context.client.post(&path, request).await?;
         WechatError::check_api(response.errcode, &response.errmsg)?;

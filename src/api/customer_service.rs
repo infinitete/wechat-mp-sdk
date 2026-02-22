@@ -218,7 +218,10 @@ impl CustomerServiceApi {
     /// ```
     pub async fn send(&self, touser: &str, message: Message) -> Result<(), WechatError> {
         let access_token = self.context.token_manager.get_token().await?;
-        let path = format!("/cgi-bin/message/custom/send?access_token={}", access_token);
+        let path = crate::client::WechatClient::append_access_token(
+            "/cgi-bin/message/custom/send?access_token={}",
+            &access_token,
+        );
 
         let request = CustomerServiceMessageRequest {
             touser: touser.to_string(),
@@ -242,9 +245,9 @@ impl CustomerServiceApi {
         command: TypingCommand,
     ) -> Result<(), WechatError> {
         let access_token = self.context.token_manager.get_token().await?;
-        let path = format!(
+        let path = crate::client::WechatClient::append_access_token(
             "/cgi-bin/message/custom/typing?access_token={}",
-            access_token
+            &access_token,
         );
         let request = SetTypingRequest {
             touser: touser.to_string(),

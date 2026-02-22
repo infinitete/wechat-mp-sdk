@@ -222,9 +222,9 @@ impl UserApi {
     pub async fn get_phone_number(&self, code: &str) -> Result<PhoneNumberResponse, WechatError> {
         let access_token = self.context.token_manager.get_token().await?;
 
-        let path = format!(
+        let path = crate::client::WechatClient::append_access_token(
             "/wxa/business/getuserphonenumber?access_token={}",
-            access_token
+            &access_token,
         );
         let request = PhoneNumberRequest {
             code: code.to_string(),
@@ -245,7 +245,10 @@ impl UserApi {
         code: &str,
     ) -> Result<PluginOpenPIdResponse, WechatError> {
         let access_token = self.context.token_manager.get_token().await?;
-        let path = format!("/wxa/getpluginopenpid?access_token={}", access_token);
+        let path = crate::client::WechatClient::append_access_token(
+            "/wxa/getpluginopenpid?access_token={}",
+            &access_token,
+        );
         let body = PluginOpenPIdRequest {
             code: code.to_string(),
         };
@@ -262,9 +265,9 @@ impl UserApi {
         encrypted_msg_hash: &str,
     ) -> Result<CheckEncryptedDataResponse, WechatError> {
         let access_token = self.context.token_manager.get_token().await?;
-        let path = format!(
+        let path = crate::client::WechatClient::append_access_token(
             "/wxa/business/checkencryptedmsg?access_token={}",
-            access_token
+            &access_token,
         );
         let body = CheckEncryptedDataRequest {
             encrypted_msg_hash: encrypted_msg_hash.to_string(),
@@ -304,9 +307,9 @@ impl UserApi {
         sig_method: &str,
     ) -> Result<UserEncryptKeyResponse, WechatError> {
         let access_token = self.context.token_manager.get_token().await?;
-        let path = format!(
+        let path = crate::client::WechatClient::append_access_token(
             "/wxa/business/getuserencryptkey?access_token={}",
-            access_token
+            &access_token,
         );
         let body = UserEncryptKeyRequest {
             openid: openid.to_string(),

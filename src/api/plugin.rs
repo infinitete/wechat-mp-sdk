@@ -61,7 +61,10 @@ impl PluginApi {
 
     async fn post_plugin<B: Serialize>(&self, body: &B) -> Result<PluginResponse, WechatError> {
         let access_token = self.context.token_manager.get_token().await?;
-        let path = format!("/wxa/plugin?access_token={}", access_token);
+        let path = crate::client::WechatClient::append_access_token(
+            "/wxa/plugin?access_token={}",
+            &access_token,
+        );
         let response: PluginResponse = self.context.client.post(&path, body).await?;
         WechatError::check_api(response.errcode, &response.errmsg)?;
         Ok(response)

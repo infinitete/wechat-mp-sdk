@@ -155,7 +155,10 @@ impl QrcodeApi {
     /// POST /wxa/getwxacode
     pub async fn get_wxa_code(&self, options: QrcodeOptions) -> Result<Vec<u8>, WechatError> {
         let access_token = self.context.token_manager.get_token().await?;
-        let path = format!("/wxa/getwxacode?access_token={}", access_token);
+        let path = crate::client::WechatClient::append_access_token(
+            "/wxa/getwxacode?access_token={}",
+            &access_token,
+        );
         self.get_image_bytes(&path, &options).await
     }
 
@@ -167,7 +170,10 @@ impl QrcodeApi {
         options: UnlimitQrcodeOptions,
     ) -> Result<Vec<u8>, WechatError> {
         let access_token = self.context.token_manager.get_token().await?;
-        let path = format!("/wxa/getwxacodeunlimit?access_token={}", access_token);
+        let path = crate::client::WechatClient::append_access_token(
+            "/wxa/getwxacodeunlimit?access_token={}",
+            &access_token,
+        );
         self.get_image_bytes(&path, &options).await
     }
 
@@ -180,9 +186,9 @@ impl QrcodeApi {
         width: Option<u32>,
     ) -> Result<Vec<u8>, WechatError> {
         let access_token = self.context.token_manager.get_token().await?;
-        let url = format!(
+        let url = crate::client::WechatClient::append_access_token(
             "/cgi-bin/wxaapp/createwxaqrcode?access_token={}",
-            access_token
+            &access_token,
         );
 
         #[derive(Serialize)]
@@ -207,7 +213,10 @@ impl QrcodeApi {
         options: UrlSchemeOptions,
     ) -> Result<String, WechatError> {
         let access_token = self.context.token_manager.get_token().await?;
-        let path = format!("/wxa/generatescheme?access_token={}", access_token);
+        let path = crate::client::WechatClient::append_access_token(
+            "/wxa/generatescheme?access_token={}",
+            &access_token,
+        );
 
         let response: UrlSchemeResponse = self.context.client.post(&path, &options).await?;
 
@@ -221,7 +230,10 @@ impl QrcodeApi {
     /// POST /wxa/generate_urllink
     pub async fn generate_url_link(&self, options: UrlLinkOptions) -> Result<String, WechatError> {
         let access_token = self.context.token_manager.get_token().await?;
-        let path = format!("/wxa/generate_urllink?access_token={}", access_token);
+        let path = crate::client::WechatClient::append_access_token(
+            "/wxa/generate_urllink?access_token={}",
+            &access_token,
+        );
 
         let response: UrlLinkResponse = self.context.client.post(&path, &options).await?;
 
@@ -238,7 +250,10 @@ impl QrcodeApi {
         options: ShortLinkOptions,
     ) -> Result<String, WechatError> {
         let access_token = self.context.token_manager.get_token().await?;
-        let path = format!("/wxa/genwxashortlink?access_token={}", access_token);
+        let path = crate::client::WechatClient::append_access_token(
+            "/wxa/genwxashortlink?access_token={}",
+            &access_token,
+        );
 
         let response: ShortLinkResponse = self.context.client.post(&path, &options).await?;
 
@@ -252,7 +267,10 @@ impl QrcodeApi {
     /// POST /wxa/queryscheme?access_token=ACCESS_TOKEN
     pub async fn query_scheme(&self, scheme: &str) -> Result<QuerySchemeResponse, WechatError> {
         let access_token = self.context.token_manager.get_token().await?;
-        let path = format!("/wxa/queryscheme?access_token={}", access_token);
+        let path = crate::client::WechatClient::append_access_token(
+            "/wxa/queryscheme?access_token={}",
+            &access_token,
+        );
 
         #[derive(Serialize)]
         struct Request {
@@ -275,7 +293,10 @@ impl QrcodeApi {
         url_link: &str,
     ) -> Result<QueryUrlLinkResponse, WechatError> {
         let access_token = self.context.token_manager.get_token().await?;
-        let path = format!("/wxa/query_urllink?access_token={}", access_token);
+        let path = crate::client::WechatClient::append_access_token(
+            "/wxa/query_urllink?access_token={}",
+            &access_token,
+        );
 
         #[derive(Serialize)]
         struct Request {
@@ -298,7 +319,10 @@ impl QrcodeApi {
         options: NfcSchemeOptions,
     ) -> Result<NfcSchemeResponse, WechatError> {
         let access_token = self.context.token_manager.get_token().await?;
-        let path = format!("/wxa/generatenfcscheme?access_token={}", access_token);
+        let path = crate::client::WechatClient::append_access_token(
+            "/wxa/generatenfcscheme?access_token={}",
+            &access_token,
+        );
         let response: NfcSchemeResponse = self.context.client.post(&path, &options).await?;
         WechatError::check_api(response.errcode, &response.errmsg)?;
         Ok(response)

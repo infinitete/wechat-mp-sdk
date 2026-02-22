@@ -2,6 +2,7 @@
 //!
 //! Provides HTTP client wrapper for WeChat API calls.
 
+use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
 use reqwest::Client;
 use serde::de::DeserializeOwned;
 use std::future::Future;
@@ -69,6 +70,17 @@ impl WechatClient {
         &self.base_url
     }
 
+    pub(crate) fn append_access_token(path: &str, access_token: &str) -> String {
+        let encoded = utf8_percent_encode(access_token, NON_ALPHANUMERIC);
+
+        if path.contains("access_token={}") {
+            return path.replacen("access_token={}", &format!("access_token={encoded}"), 1);
+        }
+
+        let separator = if path.contains('?') { '&' } else { '?' };
+        format!("{path}{separator}access_token={encoded}")
+    }
+
     /// Returns the underlying [`reqwest::Client`] for raw HTTP requests.
     ///
     /// Note: requests made through this client bypass the middleware pipeline.
@@ -112,8 +124,6 @@ impl WechatClient {
                     .and_then(|v| v.as_str())
                     .unwrap_or("unknown error");
                 return Err(WechatError::Api {
-                    // Saturate to i32::MAX if errcode exceeds i32 range.
-                    // WeChat errcodes fit in i32, but i64→i32 conversion is fallible.
                     code: errcode.try_into().unwrap_or(i32::MAX),
                     message: errmsg.to_string(),
                 });

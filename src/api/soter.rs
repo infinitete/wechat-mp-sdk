@@ -41,9 +41,9 @@ impl SoterApi {
         request: &VerifySignatureRequest,
     ) -> Result<VerifySignatureResponse, WechatError> {
         let access_token = self.context.token_manager.get_token().await?;
-        let path = format!(
+        let path = crate::client::WechatClient::append_access_token(
             "/cgi-bin/soter/verify_signature?access_token={}",
-            access_token
+            &access_token,
         );
         let response: VerifySignatureResponse = self.context.client.post(&path, request).await?;
         WechatError::check_api(response.errcode, &response.errmsg)?;

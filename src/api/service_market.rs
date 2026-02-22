@@ -41,7 +41,10 @@ impl ServiceMarketApi {
         request: &InvokeServiceRequest,
     ) -> Result<ServiceMarketResponse, WechatError> {
         let access_token = self.context.token_manager.get_token().await?;
-        let path = format!("/wxa/servicemarket?access_token={}", access_token);
+        let path = crate::client::WechatClient::append_access_token(
+            "/wxa/servicemarket?access_token={}",
+            &access_token,
+        );
         let response: ServiceMarketResponse = self.context.client.post(&path, request).await?;
         WechatError::check_api(response.errcode, &response.errmsg)?;
         Ok(response)

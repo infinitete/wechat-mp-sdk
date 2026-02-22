@@ -193,7 +193,10 @@ impl SecurityApi {
         content: &str,
     ) -> Result<MsgSecCheckResponse, WechatError> {
         let access_token = self.context.token_manager.get_token().await?;
-        let path = format!("/wxa/msg_sec_check?access_token={}", access_token);
+        let path = crate::client::WechatClient::append_access_token(
+            "/wxa/msg_sec_check?access_token={}",
+            &access_token,
+        );
         let body = MsgSecCheckRequest {
             version: 2,
             openid: openid.to_string(),
@@ -222,7 +225,10 @@ impl SecurityApi {
         scene: u8,
     ) -> Result<MediaCheckAsyncResponse, WechatError> {
         let access_token = self.context.token_manager.get_token().await?;
-        let path = format!("/wxa/media_check_async?access_token={}", access_token);
+        let path = crate::client::WechatClient::append_access_token(
+            "/wxa/media_check_async?access_token={}",
+            &access_token,
+        );
         let body = MediaCheckAsyncRequest {
             media_url: media_url.to_string(),
             media_type,
@@ -250,7 +256,10 @@ impl SecurityApi {
         options: Option<UserRiskRankOptions>,
     ) -> Result<UserRiskRankResponse, WechatError> {
         let access_token = self.context.token_manager.get_token().await?;
-        let path = format!("/wxa/getuserriskrank?access_token={}", access_token);
+        let path = crate::client::WechatClient::append_access_token(
+            "/wxa/getuserriskrank?access_token={}",
+            &access_token,
+        );
         let opts = options.unwrap_or_default();
         let body = UserRiskRankRequest {
             appid: self.context.client.appid().to_string(),

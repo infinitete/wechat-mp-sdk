@@ -230,7 +230,10 @@ impl OpenApiApi {
     /// `Ok(())` on success
     pub async fn clear_quota(&self) -> Result<(), WechatError> {
         let access_token = self.context.token_manager.get_token().await?;
-        let path = format!("/cgi-bin/clear_quota?access_token={}", access_token);
+        let path = crate::client::WechatClient::append_access_token(
+            "/cgi-bin/clear_quota?access_token={}",
+            &access_token,
+        );
         let body = ClearQuotaRequest {
             appid: self.context.client.appid().to_string(),
         };
@@ -247,7 +250,10 @@ impl OpenApiApi {
     /// * `cgi_path` - The API path to query (e.g., "/cgi-bin/message/custom/send")
     pub async fn get_api_quota(&self, cgi_path: &str) -> Result<ApiQuotaResponse, WechatError> {
         let access_token = self.context.token_manager.get_token().await?;
-        let path = format!("/cgi-bin/openapi/quota/get?access_token={}", access_token);
+        let path = crate::client::WechatClient::append_access_token(
+            "/cgi-bin/openapi/quota/get?access_token={}",
+            &access_token,
+        );
         let body = GetApiQuotaRequest {
             cgi_path: cgi_path.to_string(),
         };
@@ -264,7 +270,10 @@ impl OpenApiApi {
     /// * `cgi_path` - The API path to clear quota for
     pub async fn clear_api_quota(&self, cgi_path: &str) -> Result<(), WechatError> {
         let access_token = self.context.token_manager.get_token().await?;
-        let path = format!("/cgi-bin/openapi/quota/clear?access_token={}", access_token);
+        let path = crate::client::WechatClient::append_access_token(
+            "/cgi-bin/openapi/quota/clear?access_token={}",
+            &access_token,
+        );
         let body = ClearApiQuotaRequest {
             cgi_path: cgi_path.to_string(),
         };
@@ -298,7 +307,10 @@ impl OpenApiApi {
     /// * `rid` - The request ID to look up
     pub async fn get_rid_info(&self, rid: &str) -> Result<RidInfoResponse, WechatError> {
         let access_token = self.context.token_manager.get_token().await?;
-        let path = format!("/cgi-bin/openapi/rid/get?access_token={}", access_token);
+        let path = crate::client::WechatClient::append_access_token(
+            "/cgi-bin/openapi/rid/get?access_token={}",
+            &access_token,
+        );
         let body = GetRidInfoRequest {
             rid: rid.to_string(),
         };
@@ -320,7 +332,10 @@ impl OpenApiApi {
         check_operator: &str,
     ) -> Result<CallbackCheckResponse, WechatError> {
         let access_token = self.context.token_manager.get_token().await?;
-        let path = format!("/cgi-bin/callback/check?access_token={}", access_token);
+        let path = crate::client::WechatClient::append_access_token(
+            "/cgi-bin/callback/check?access_token={}",
+            &access_token,
+        );
         let body = CallbackCheckRequest {
             action: action.to_string(),
             check_operator: check_operator.to_string(),

@@ -194,7 +194,10 @@ impl AuthApi {
         sig_method: &str,
     ) -> Result<(), WechatError> {
         let access_token = self.context.token_manager.get_token().await?;
-        let path = format!("/wxa/checksession?access_token={}", access_token);
+        let path = crate::client::WechatClient::append_access_token(
+            "/wxa/checksession?access_token={}",
+            &access_token,
+        );
         let body = CheckSessionKeyRequest {
             openid: openid.to_string(),
             signature: signature.to_string(),
@@ -215,7 +218,10 @@ impl AuthApi {
         sig_method: &str,
     ) -> Result<ResetSessionKeyResponse, WechatError> {
         let access_token = self.context.token_manager.get_token().await?;
-        let path = format!("/wxa/resetusersessionkey?access_token={}", access_token);
+        let path = crate::client::WechatClient::append_access_token(
+            "/wxa/resetusersessionkey?access_token={}",
+            &access_token,
+        );
         let body = ResetUserSessionKeyRequest {
             openid: openid.to_string(),
             signature: signature.to_string(),

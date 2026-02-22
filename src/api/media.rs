@@ -142,10 +142,14 @@ impl MediaApi {
         data: &[u8],
     ) -> Result<MediaUploadResponse, WechatError> {
         let access_token = self.context.token_manager.get_token().await?;
+        let path = crate::client::WechatClient::append_access_token(
+            "/cgi-bin/media/upload",
+            &access_token,
+        );
         let url = format!(
-            "{}/cgi-bin/media/upload?access_token={}&type={}",
+            "{}{}&type={}",
             self.context.client.base_url(),
-            access_token,
+            path,
             media_type.as_str()
         );
 
@@ -191,15 +195,37 @@ impl MediaApi {
     /// ```
     pub async fn get_temp_media(&self, media_id: &str) -> Result<Vec<u8>, WechatError> {
         let access_token = self.context.token_manager.get_token().await?;
+        let path =
+            crate::client::WechatClient::append_access_token("/cgi-bin/media/get", &access_token);
         let url = format!(
-            "{}/cgi-bin/media/get?access_token={}&media_id={}",
+            "{}{}&media_id={}",
             self.context.client.base_url(),
-            access_token,
+            path,
             media_id
         );
 
         let request = self.context.client.http().get(&url).build()?;
         let response = self.context.client.send_request(request).await?;
+
+        #[derive(Deserialize)]
+        struct ErrorResponse {
+            errcode: i32,
+            errmsg: String,
+        }
+
+        let content_type = response
+            .headers()
+            .get("content-type")
+            .and_then(|v| v.to_str().ok())
+            .unwrap_or("");
+
+        if content_type.contains("application/json") {
+            let error: ErrorResponse = response.json().await?;
+            return Err(WechatError::Api {
+                code: error.errcode,
+                message: error.errmsg,
+            });
+        }
 
         let bytes = response.bytes().await?;
         Ok(bytes.to_vec())
@@ -401,9 +427,13 @@ mod tests {
 
         let result = media_api.get_temp_media("expired_media").await;
 
-        assert!(result.is_ok());
-        let data = result.unwrap();
-        let body: serde_json::Value = serde_json::from_slice(&data).unwrap();
-        assert_eq!(body["errcode"], 40007);
+        assert!(result.is_err());
+        match result {
+            Err(WechatError::Api { code, message }) => {
+                assert_eq!(code, 40007);
+                assert_eq!(message, "invalid media_id");
+            }
+            _ => panic!("Expected WechatError::Api"),
+        }
     }
 }

@@ -6,6 +6,8 @@
 
 微信小程序服务端 SDK for Rust。
 
+当前版本：`0.1.0`（开发中，尚未发布）。
+
 ## 功能特性
 
 覆盖微信小程序服务端 **128 个接口**，跨 24 个功能分类：
@@ -25,13 +27,14 @@
 - 直播、硬件/IoT、即时配送、物流
 - 服务市场、生物认证、人脸核身、微信搜索、广告、微信客服
 
+
 ## 安装
 
 在 `Cargo.toml` 中添加依赖：
 
 ```toml
 [dependencies]
-wechat-mp-sdk = "0.2"
+wechat-mp-sdk = "0.1"
 ```
 
 ### 可选依赖
@@ -39,7 +42,7 @@ wechat-mp-sdk = "0.2"
 如需启用额外的 HTTP Client 功能：
 
 ```toml
-wechat-mp-sdk = { version = "0.2", features = ["native-tls"] }
+wechat-mp-sdk = { version = "0.1", features = ["native-tls"] }
 ```
 
 ## 快速开始
@@ -280,6 +283,8 @@ SDK 采用四层错误模型，按调用顺序分为：
 3. **解码错误** (`WechatError::Http(HttpError::Decode)`): 响应体 JSON 格式正确但与预期类型不匹配
 4. **API 业务错误** (`WechatError::Api { code, message }`): 微信返回 errcode != 0
 
+> 注：对媒体下载接口而言，若微信返回 JSON 错误体（例如 `errcode`/`errmsg`），SDK 会按业务错误返回 `WechatError::Api`。
+
 ```rust
 use wechat_mp_sdk::WechatError;
 
@@ -363,97 +368,7 @@ match result {
 }
 ```
 
-## 兼容性说明
 
-本次更新包含以下兼容性变更：
-
-### 错误模型变更
-
-- `WechatError::Http` 现在内部封装 `HttpError` 枚举，而非直接使用 `reqwest::Error`
-- 非 2xx HTTP 响应现在归类为 `HttpError::Reqwest`（传输层），而非 `WechatError::Api`（业务层）
-- JSON 解码失败归类为 `HttpError::Decode`，便于区分网络错误和数据错误
-
-### 验证规则加强
-
-以下类型在构造时进行了更严格的校验：
-
-- `SessionKey`: 新增 base64 格式验证和长度校验（必须解码为 16 字节）
-- `AppSecret`: 新增控制字符检测
-- `UnionId`: 新增控制字符检测
-- `AccessToken`: 新增首尾空白和控制字符检测
-
-如果现有代码使用了不符合新校验规则的输入，需要更新输入数据。
-
-### 中间件管道
-
-`WechatMp::builder().with_middleware()` 现在正确连接中间件到请求执行路径（此前为占位符）。
-
-### 无 Panic 保证
-
-SDK 在生产路径中移除了所有 `unwrap()` 和 `expect()` 调用，提升了运行稳定性：
-
-- 认证中间件不再因格式错误的 URI 而 panic
-- 重试中间件不再因 `max_retries=0` 而 panic
-
-### 公共 API 保持兼容
-
-所有公共 API 方法签名保持不变，现有代码无需修改即可编译运行。
-
-## 从 0.1.x 迁移到 0.2.0
-
-### 重大变更
-
-1. **统一客户端**: `WechatMp` 替代了分离的 `WechatClient` + `TokenManager` + `Api` 模式
-2. **内置 Token 管理**: `TokenManager` 不再需要手动创建和管理
-3. **模块结构简化**: API 方法直接通过 `WechatMp` 实例调用
-
-### 迁移示例
-
-#### 旧版 (0.1.x)
-
-```rust
-use wechat_mp_sdk::{
-    WechatClient, WechatClientBuilder,
-    api::auth::AuthApi,
-    token::TokenManager,
-    types::{AppId, AppSecret},
-};
-
-let client = WechatClient::builder()
-    .appid(AppId::new("wx1234567890abcdef")?)
-    .secret(AppSecret::new("your_secret".to_string())?)
-    .build()?;
-
-let token_manager = TokenManager::new(client.clone());
-let auth_api = AuthApi::new(client.clone());
-
-let response = auth_api.login("code").await?;
-// 使用 token_manager 处理其他 API...
-```
-
-#### 新版 (0.2.0)
-
-```rust
-use wechat_mp_sdk::{WechatMp, types::{AppId, AppSecret}};
-
-let wechat = WechatMp::builder()
-    .appid(AppId::new("wx1234567890abcdef")?)
-    .secret(AppSecret::new("your_secret")?)
-    .build()?;
-
-let response = wechat.auth_login("code").await?;
-// Token 自动管理，无需额外处理
-```
-
-#### 主要变化对比
-
-| 特性 | 0.1.x | 0.2.0 |
-|------|-------|-------|
-| 客户端创建 | `WechatClient::builder()` | `WechatMp::builder()` |
-| Token 管理 | 手动创建 `TokenManager` | 内置自动管理 |
-| API 调用 | 创建独立 API 实例 | 通过 `wechat` 实例直接调用 |
-| 获取 Token | `token_manager.get_token()` | `wechat.get_access_token()` |
-| Token 失效 | `token_manager.invalidate()` | `wechat.invalidate_token()` |
 
 ## 完整 API 覆盖
 
