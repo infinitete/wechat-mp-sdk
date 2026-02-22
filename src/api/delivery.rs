@@ -81,9 +81,7 @@ impl DeliveryApi {
         endpoint: &str,
         body: &B,
     ) -> Result<DeliveryResponse, WechatError> {
-        let access_token = self.context.token_manager.get_token().await?;
-        let path = crate::client::WechatClient::append_access_token(endpoint, &access_token);
-        let response: DeliveryResponse = self.context.client.post(&path, body).await?;
+        let response: DeliveryResponse = self.context.authed_post(endpoint, body).await?;
         WechatError::check_api(response.errcode, &response.errmsg)?;
         Ok(response)
     }

@@ -23,7 +23,6 @@ use tokio::time::sleep;
 use tower::{Layer, Service};
 
 use crate::error::WechatError;
-use crate::token::RETRYABLE_ERROR_CODES;
 use crate::utils::jittered_delay;
 
 /// Middleware that retries requests on 5xx and retryable errors.
@@ -65,24 +64,11 @@ impl RetryMiddleware {
     }
 
     /// Check if an error is retryable.
+    ///
+    /// Delegates to [`WechatError::is_transient()`] to ensure a single
+    /// canonical retry-classification policy across the crate.
     pub fn is_retryable_error(error: &WechatError) -> bool {
-        match error {
-            // Network errors are retryable
-            WechatError::Http(_) => true,
-            // WeChat API errors with retryable codes are retryable
-            WechatError::Api { code, .. } => RETRYABLE_ERROR_CODES.contains(code),
-            WechatError::Json(_)
-            | WechatError::Token(_)
-            | WechatError::Config(_)
-            | WechatError::Signature(_)
-            | WechatError::Crypto(_)
-            | WechatError::InvalidAppId(_)
-            | WechatError::InvalidOpenId(_)
-            | WechatError::InvalidAccessToken(_)
-            | WechatError::InvalidAppSecret(_)
-            | WechatError::InvalidSessionKey(_)
-            | WechatError::InvalidUnionId(_) => false,
-        }
+        error.is_transient()
     }
 }
 
@@ -231,22 +217,24 @@ mod tests {
     fn test_is_retryable_error_exhaustive_variants() {
         use crate::error::HttpError;
 
-        // Http => retryable
-        let decode_err = WechatError::Http(HttpError::Decode("bad".into()));
-        assert!(RetryMiddleware::is_retryable_error(&decode_err));
+        // Http(Reqwest) => retryable (transient transport failure)
+        let reqwest_error = reqwest::Client::new().get("http://").build().unwrap_err();
+        let reqwest_err = WechatError::Http(HttpError::Reqwest(std::sync::Arc::new(reqwest_error)));
+        assert!(RetryMiddleware::is_retryable_error(&reqwest_err));
 
+        // Http(Decode) => NOT retryable (response schema mismatch is not transient)
+        let decode_err = WechatError::Http(HttpError::Decode("bad".into()));
+        assert!(!RetryMiddleware::is_retryable_error(&decode_err));
         // Api with retryable code => retryable
         assert!(RetryMiddleware::is_retryable_error(&WechatError::Api {
             code: -1,
             message: "busy".into(),
         }));
-
         // Api with non-retryable code => not retryable
         assert!(!RetryMiddleware::is_retryable_error(&WechatError::Api {
             code: 40001,
             message: "invalid".into(),
         }));
-
         // All remaining variants => not retryable
         let non_retryable: Vec<WechatError> = vec![
             WechatError::Json(serde_json::from_str::<String>("bad").unwrap_err()),
@@ -292,11 +280,15 @@ mod tests {
     }
 
     #[test]
-    fn test_decode_error_currently_retryable() {
+    fn test_decode_error_not_retryable() {
         use crate::error::HttpError;
 
-        let decode_err = WechatError::Http(HttpError::Decode("baseline decode error".to_string()));
-        assert!(RetryMiddleware::is_retryable_error(&decode_err));
+        // Decode errors are NOT transient — a schema mismatch won't resolve on retry.
+        let decode_err = WechatError::Http(HttpError::Decode("response decode error".to_string()));
+        assert!(
+            !RetryMiddleware::is_retryable_error(&decode_err),
+            "Decode errors should not be retried",
+        );
     }
 
     #[test]

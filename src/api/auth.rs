@@ -193,17 +193,13 @@ impl AuthApi {
         signature: &str,
         sig_method: &str,
     ) -> Result<(), WechatError> {
-        let access_token = self.context.token_manager.get_token().await?;
-        let path = crate::client::WechatClient::append_access_token(
-            "/wxa/checksession?access_token={}",
-            &access_token,
-        );
         let body = CheckSessionKeyRequest {
             openid: openid.to_string(),
             signature: signature.to_string(),
             sig_method: sig_method.to_string(),
         };
-        let response: BaseApiResponse = self.context.client.post(&path, &body).await?;
+        let response: BaseApiResponse =
+            self.context.authed_post("/wxa/checksession", &body).await?;
         WechatError::check_api(response.errcode, &response.errmsg)?;
         Ok(())
     }
@@ -217,17 +213,15 @@ impl AuthApi {
         signature: &str,
         sig_method: &str,
     ) -> Result<ResetSessionKeyResponse, WechatError> {
-        let access_token = self.context.token_manager.get_token().await?;
-        let path = crate::client::WechatClient::append_access_token(
-            "/wxa/resetusersessionkey?access_token={}",
-            &access_token,
-        );
         let body = ResetUserSessionKeyRequest {
             openid: openid.to_string(),
             signature: signature.to_string(),
             sig_method: sig_method.to_string(),
         };
-        let response: ResetSessionKeyResponse = self.context.client.post(&path, &body).await?;
+        let response: ResetSessionKeyResponse = self
+            .context
+            .authed_post("/wxa/resetusersessionkey", &body)
+            .await?;
         WechatError::check_api(response.errcode, &response.errmsg)?;
         Ok(response)
     }

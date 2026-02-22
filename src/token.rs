@@ -264,7 +264,7 @@ impl TokenManager {
                         });
                     }
                 }
-                Err(WechatError::Http(e)) => {
+                Err(WechatError::Http(e)) if e.is_transient() => {
                     last_error = Some(WechatError::Http(e));
                     if attempt < self.max_retries - 1 {
                         tokio::time::sleep(jittered_delay(self.retry_delay_ms, attempt)).await;
@@ -474,6 +474,17 @@ mod tests {
             errmsg: "invalid credential".to_string(),
         };
         assert!(!response.is_retryable_error());
+    }
+
+    #[test]
+    fn test_decode_error_is_not_transient_for_token_retry() {
+        use crate::error::HttpError;
+
+        let decode_err = HttpError::Decode("unexpected response format".to_string());
+        assert!(
+            !decode_err.is_transient(),
+            "Decode errors must not be retried by TokenManager",
+        );
     }
 
     #[test]

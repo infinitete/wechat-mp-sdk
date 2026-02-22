@@ -229,15 +229,13 @@ impl OpenApiApi {
     /// # Returns
     /// `Ok(())` on success
     pub async fn clear_quota(&self) -> Result<(), WechatError> {
-        let access_token = self.context.token_manager.get_token().await?;
-        let path = crate::client::WechatClient::append_access_token(
-            "/cgi-bin/clear_quota?access_token={}",
-            &access_token,
-        );
         let body = ClearQuotaRequest {
             appid: self.context.client.appid().to_string(),
         };
-        let response: BaseApiResponse = self.context.client.post(&path, &body).await?;
+        let response: BaseApiResponse = self
+            .context
+            .authed_post("/cgi-bin/clear_quota", &body)
+            .await?;
         WechatError::check_api(response.errcode, &response.errmsg)?;
         Ok(())
     }
@@ -249,15 +247,13 @@ impl OpenApiApi {
     /// # Arguments
     /// * `cgi_path` - The API path to query (e.g., "/cgi-bin/message/custom/send")
     pub async fn get_api_quota(&self, cgi_path: &str) -> Result<ApiQuotaResponse, WechatError> {
-        let access_token = self.context.token_manager.get_token().await?;
-        let path = crate::client::WechatClient::append_access_token(
-            "/cgi-bin/openapi/quota/get?access_token={}",
-            &access_token,
-        );
         let body = GetApiQuotaRequest {
             cgi_path: cgi_path.to_string(),
         };
-        let response: ApiQuotaResponse = self.context.client.post(&path, &body).await?;
+        let response: ApiQuotaResponse = self
+            .context
+            .authed_post("/cgi-bin/openapi/quota/get", &body)
+            .await?;
         WechatError::check_api(response.errcode, &response.errmsg)?;
         Ok(response)
     }
@@ -269,15 +265,13 @@ impl OpenApiApi {
     /// # Arguments
     /// * `cgi_path` - The API path to clear quota for
     pub async fn clear_api_quota(&self, cgi_path: &str) -> Result<(), WechatError> {
-        let access_token = self.context.token_manager.get_token().await?;
-        let path = crate::client::WechatClient::append_access_token(
-            "/cgi-bin/openapi/quota/clear?access_token={}",
-            &access_token,
-        );
         let body = ClearApiQuotaRequest {
             cgi_path: cgi_path.to_string(),
         };
-        let response: BaseApiResponse = self.context.client.post(&path, &body).await?;
+        let response: BaseApiResponse = self
+            .context
+            .authed_post("/cgi-bin/openapi/quota/clear", &body)
+            .await?;
         WechatError::check_api(response.errcode, &response.errmsg)?;
         Ok(())
     }
@@ -306,15 +300,13 @@ impl OpenApiApi {
     /// # Arguments
     /// * `rid` - The request ID to look up
     pub async fn get_rid_info(&self, rid: &str) -> Result<RidInfoResponse, WechatError> {
-        let access_token = self.context.token_manager.get_token().await?;
-        let path = crate::client::WechatClient::append_access_token(
-            "/cgi-bin/openapi/rid/get?access_token={}",
-            &access_token,
-        );
         let body = GetRidInfoRequest {
             rid: rid.to_string(),
         };
-        let response: RidInfoResponse = self.context.client.post(&path, &body).await?;
+        let response: RidInfoResponse = self
+            .context
+            .authed_post("/cgi-bin/openapi/rid/get", &body)
+            .await?;
         WechatError::check_api(response.errcode, &response.errmsg)?;
         Ok(response)
     }
@@ -331,16 +323,14 @@ impl OpenApiApi {
         action: &str,
         check_operator: &str,
     ) -> Result<CallbackCheckResponse, WechatError> {
-        let access_token = self.context.token_manager.get_token().await?;
-        let path = crate::client::WechatClient::append_access_token(
-            "/cgi-bin/callback/check?access_token={}",
-            &access_token,
-        );
         let body = CallbackCheckRequest {
             action: action.to_string(),
             check_operator: check_operator.to_string(),
         };
-        let response: CallbackCheckResponse = self.context.client.post(&path, &body).await?;
+        let response: CallbackCheckResponse = self
+            .context
+            .authed_post("/cgi-bin/callback/check", &body)
+            .await?;
         WechatError::check_api(response.errcode, &response.errmsg)?;
         Ok(response)
     }
@@ -349,10 +339,10 @@ impl OpenApiApi {
     ///
     /// GET /cgi-bin/get_api_domain_ip?access_token=ACCESS_TOKEN
     pub async fn get_api_domain_ip(&self) -> Result<IpListResponse, WechatError> {
-        let access_token = self.context.token_manager.get_token().await?;
-        let path = "/cgi-bin/get_api_domain_ip";
-        let query = [("access_token", access_token.as_str())];
-        let response: IpListResponse = self.context.client.get(path, &query).await?;
+        let response: IpListResponse = self
+            .context
+            .authed_get("/cgi-bin/get_api_domain_ip", &[])
+            .await?;
         WechatError::check_api(response.errcode, &response.errmsg)?;
         Ok(response)
     }
@@ -361,10 +351,10 @@ impl OpenApiApi {
     ///
     /// GET /cgi-bin/getcallbackip?access_token=ACCESS_TOKEN
     pub async fn get_callback_ip(&self) -> Result<IpListResponse, WechatError> {
-        let access_token = self.context.token_manager.get_token().await?;
-        let path = "/cgi-bin/getcallbackip";
-        let query = [("access_token", access_token.as_str())];
-        let response: IpListResponse = self.context.client.get(path, &query).await?;
+        let response: IpListResponse = self
+            .context
+            .authed_get("/cgi-bin/getcallbackip", &[])
+            .await?;
         WechatError::check_api(response.errcode, &response.errmsg)?;
         Ok(response)
     }

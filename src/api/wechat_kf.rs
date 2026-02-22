@@ -102,15 +102,13 @@ impl WechatKfApi {
         &self,
         openid: &str,
     ) -> Result<KfWorkBoundResponse, WechatError> {
-        let access_token = self.context.token_manager.get_token().await?;
-        let path = crate::client::WechatClient::append_access_token(
-            "/cgi-bin/kfaccount/getbindedopenkfid?access_token={}",
-            &access_token,
-        );
         let body = GetKfWorkBoundRequest {
             openid: openid.to_string(),
         };
-        let response: KfWorkBoundResponse = self.context.client.post(&path, &body).await?;
+        let response: KfWorkBoundResponse = self
+            .context
+            .authed_post("/cgi-bin/kfaccount/getbindedopenkfid", &body)
+            .await?;
         WechatError::check_api(response.errcode, &response.errmsg)?;
         Ok(response)
     }
@@ -123,16 +121,14 @@ impl WechatKfApi {
     /// * `openid` - User's OpenID
     /// * `open_kfid` - Open KF account ID to bind
     pub async fn bind_kf_work(&self, openid: &str, open_kfid: &str) -> Result<(), WechatError> {
-        let access_token = self.context.token_manager.get_token().await?;
-        let path = crate::client::WechatClient::append_access_token(
-            "/cgi-bin/kfaccount/bindopenkfid?access_token={}",
-            &access_token,
-        );
         let body = BindKfWorkRequest {
             openid: openid.to_string(),
             open_kfid: open_kfid.to_string(),
         };
-        let response: BaseApiResponse = self.context.client.post(&path, &body).await?;
+        let response: BaseApiResponse = self
+            .context
+            .authed_post("/cgi-bin/kfaccount/bindopenkfid", &body)
+            .await?;
         WechatError::check_api(response.errcode, &response.errmsg)?;
         Ok(())
     }
@@ -145,16 +141,14 @@ impl WechatKfApi {
     /// * `openid` - User's OpenID
     /// * `open_kfid` - Open KF account ID to unbind
     pub async fn unbind_kf_work(&self, openid: &str, open_kfid: &str) -> Result<(), WechatError> {
-        let access_token = self.context.token_manager.get_token().await?;
-        let path = crate::client::WechatClient::append_access_token(
-            "/cgi-bin/kfaccount/unbindopenkfid?access_token={}",
-            &access_token,
-        );
         let body = UnbindKfWorkRequest {
             openid: openid.to_string(),
             open_kfid: open_kfid.to_string(),
         };
-        let response: BaseApiResponse = self.context.client.post(&path, &body).await?;
+        let response: BaseApiResponse = self
+            .context
+            .authed_post("/cgi-bin/kfaccount/unbindopenkfid", &body)
+            .await?;
         WechatError::check_api(response.errcode, &response.errmsg)?;
         Ok(())
     }

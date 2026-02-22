@@ -4,7 +4,11 @@
 
 use std::sync::Arc;
 
+use serde::de::DeserializeOwned;
+use serde::Serialize;
+
 use crate::client::WechatClient;
+use crate::error::WechatError;
 use crate::token::TokenManager;
 
 /// Context holding shared resources for WeChat API implementations.
@@ -45,6 +49,38 @@ impl WechatContext {
     /// Get a reference to the token manager.
     pub fn token_manager(&self) -> &TokenManager {
         &self.token_manager
+    }
+
+    pub(crate) async fn authed_get<T: DeserializeOwned>(
+        &self,
+        path: &str,
+        extra_query: &[(&str, &str)],
+    ) -> Result<T, WechatError> {
+        let token = self.token_manager.get_token().await?;
+        let authed_path = WechatClient::append_access_token(path, &token);
+        self.client.get(&authed_path, extra_query).await
+    }
+
+    pub(crate) async fn authed_post<T: DeserializeOwned, B: Serialize>(
+        &self,
+        path: &str,
+        body: &B,
+    ) -> Result<T, WechatError> {
+        let token = self.token_manager.get_token().await?;
+        let authed_path = WechatClient::append_access_token(path, &token);
+        self.client.post(&authed_path, body).await
+    }
+
+    pub(crate) async fn authed_post_raw<B: Serialize>(
+        &self,
+        path: &str,
+        body: &B,
+    ) -> Result<reqwest::Response, WechatError> {
+        let token = self.token_manager.get_token().await?;
+        let authed_path = WechatClient::append_access_token(path, &token);
+        let url = format!("{}{}", self.client.base_url(), &authed_path);
+        let request = self.client.http().post(&url).json(body).build()?;
+        Ok(self.client.send_request(request).await?)
     }
 }
 

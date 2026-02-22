@@ -220,17 +220,14 @@ impl UserApi {
     /// # Returns
     /// PhoneNumberResponse containing phone_info with phone number details
     pub async fn get_phone_number(&self, code: &str) -> Result<PhoneNumberResponse, WechatError> {
-        let access_token = self.context.token_manager.get_token().await?;
-
-        let path = crate::client::WechatClient::append_access_token(
-            "/wxa/business/getuserphonenumber?access_token={}",
-            &access_token,
-        );
         let request = PhoneNumberRequest {
             code: code.to_string(),
         };
 
-        let response: PhoneNumberResponse = self.context.client.post(&path, &request).await?;
+        let response: PhoneNumberResponse = self
+            .context
+            .authed_post("/wxa/business/getuserphonenumber", &request)
+            .await?;
 
         WechatError::check_api(response.errcode, &response.errmsg)?;
 
@@ -244,15 +241,13 @@ impl UserApi {
         &self,
         code: &str,
     ) -> Result<PluginOpenPIdResponse, WechatError> {
-        let access_token = self.context.token_manager.get_token().await?;
-        let path = crate::client::WechatClient::append_access_token(
-            "/wxa/getpluginopenpid?access_token={}",
-            &access_token,
-        );
         let body = PluginOpenPIdRequest {
             code: code.to_string(),
         };
-        let response: PluginOpenPIdResponse = self.context.client.post(&path, &body).await?;
+        let response: PluginOpenPIdResponse = self
+            .context
+            .authed_post("/wxa/getpluginopenpid", &body)
+            .await?;
         WechatError::check_api(response.errcode, &response.errmsg)?;
         Ok(response)
     }
@@ -264,15 +259,13 @@ impl UserApi {
         &self,
         encrypted_msg_hash: &str,
     ) -> Result<CheckEncryptedDataResponse, WechatError> {
-        let access_token = self.context.token_manager.get_token().await?;
-        let path = crate::client::WechatClient::append_access_token(
-            "/wxa/business/checkencryptedmsg?access_token={}",
-            &access_token,
-        );
         let body = CheckEncryptedDataRequest {
             encrypted_msg_hash: encrypted_msg_hash.to_string(),
         };
-        let response: CheckEncryptedDataResponse = self.context.client.post(&path, &body).await?;
+        let response: CheckEncryptedDataResponse = self
+            .context
+            .authed_post("/wxa/business/checkencryptedmsg", &body)
+            .await?;
         WechatError::check_api(response.errcode, &response.errmsg)?;
         Ok(response)
     }
@@ -285,14 +278,13 @@ impl UserApi {
         openid: &str,
         transaction_id: &str,
     ) -> Result<PaidUnionIdResponse, WechatError> {
-        let access_token = self.context.token_manager.get_token().await?;
-        let path = "/wxa/getpaidunionid";
-        let query = [
-            ("access_token", access_token.as_str()),
-            ("openid", openid),
-            ("transaction_id", transaction_id),
-        ];
-        let response: PaidUnionIdResponse = self.context.client.get(path, &query).await?;
+        let response: PaidUnionIdResponse = self
+            .context
+            .authed_get(
+                "/wxa/getpaidunionid",
+                &[("openid", openid), ("transaction_id", transaction_id)],
+            )
+            .await?;
         WechatError::check_api(response.errcode, &response.errmsg)?;
         Ok(response)
     }
@@ -306,17 +298,15 @@ impl UserApi {
         signature: &str,
         sig_method: &str,
     ) -> Result<UserEncryptKeyResponse, WechatError> {
-        let access_token = self.context.token_manager.get_token().await?;
-        let path = crate::client::WechatClient::append_access_token(
-            "/wxa/business/getuserencryptkey?access_token={}",
-            &access_token,
-        );
         let body = UserEncryptKeyRequest {
             openid: openid.to_string(),
             signature: signature.to_string(),
             sig_method: sig_method.to_string(),
         };
-        let response: UserEncryptKeyResponse = self.context.client.post(&path, &body).await?;
+        let response: UserEncryptKeyResponse = self
+            .context
+            .authed_post("/wxa/business/getuserencryptkey", &body)
+            .await?;
         WechatError::check_api(response.errcode, &response.errmsg)?;
         Ok(response)
     }

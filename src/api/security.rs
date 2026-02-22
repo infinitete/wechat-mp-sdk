@@ -192,18 +192,16 @@ impl SecurityApi {
         scene: u8,
         content: &str,
     ) -> Result<MsgSecCheckResponse, WechatError> {
-        let access_token = self.context.token_manager.get_token().await?;
-        let path = crate::client::WechatClient::append_access_token(
-            "/wxa/msg_sec_check?access_token={}",
-            &access_token,
-        );
         let body = MsgSecCheckRequest {
             version: 2,
             openid: openid.to_string(),
             scene,
             content: content.to_string(),
         };
-        let response: MsgSecCheckResponse = self.context.client.post(&path, &body).await?;
+        let response: MsgSecCheckResponse = self
+            .context
+            .authed_post("/wxa/msg_sec_check", &body)
+            .await?;
         WechatError::check_api(response.errcode, &response.errmsg)?;
         Ok(response)
     }
@@ -224,11 +222,6 @@ impl SecurityApi {
         openid: &str,
         scene: u8,
     ) -> Result<MediaCheckAsyncResponse, WechatError> {
-        let access_token = self.context.token_manager.get_token().await?;
-        let path = crate::client::WechatClient::append_access_token(
-            "/wxa/media_check_async?access_token={}",
-            &access_token,
-        );
         let body = MediaCheckAsyncRequest {
             media_url: media_url.to_string(),
             media_type,
@@ -236,7 +229,10 @@ impl SecurityApi {
             openid: openid.to_string(),
             scene,
         };
-        let response: MediaCheckAsyncResponse = self.context.client.post(&path, &body).await?;
+        let response: MediaCheckAsyncResponse = self
+            .context
+            .authed_post("/wxa/media_check_async", &body)
+            .await?;
         WechatError::check_api(response.errcode, &response.errmsg)?;
         Ok(response)
     }
@@ -255,11 +251,6 @@ impl SecurityApi {
         scene: u8,
         options: Option<UserRiskRankOptions>,
     ) -> Result<UserRiskRankResponse, WechatError> {
-        let access_token = self.context.token_manager.get_token().await?;
-        let path = crate::client::WechatClient::append_access_token(
-            "/wxa/getuserriskrank?access_token={}",
-            &access_token,
-        );
         let opts = options.unwrap_or_default();
         let body = UserRiskRankRequest {
             appid: self.context.client.appid().to_string(),
@@ -271,7 +262,10 @@ impl SecurityApi {
             extended_info: opts.extended_info,
             is_test: opts.is_test,
         };
-        let response: UserRiskRankResponse = self.context.client.post(&path, &body).await?;
+        let response: UserRiskRankResponse = self
+            .context
+            .authed_post("/wxa/getuserriskrank", &body)
+            .await?;
         WechatError::check_api(response.errcode, &response.errmsg)?;
         Ok(response)
     }

@@ -217,19 +217,15 @@ impl CustomerServiceApi {
     /// api.send("user_openid", message).await?;
     /// ```
     pub async fn send(&self, touser: &str, message: Message) -> Result<(), WechatError> {
-        let access_token = self.context.token_manager.get_token().await?;
-        let path = crate::client::WechatClient::append_access_token(
-            "/cgi-bin/message/custom/send?access_token={}",
-            &access_token,
-        );
-
         let request = CustomerServiceMessageRequest {
             touser: touser.to_string(),
             msgtype: message,
         };
 
-        let response: CustomerServiceMessageResponse =
-            self.context.client.post(&path, &request).await?;
+        let response: CustomerServiceMessageResponse = self
+            .context
+            .authed_post("/cgi-bin/message/custom/send", &request)
+            .await?;
 
         WechatError::check_api(response.errcode, &response.errmsg)?;
 
@@ -244,17 +240,14 @@ impl CustomerServiceApi {
         touser: &str,
         command: TypingCommand,
     ) -> Result<(), WechatError> {
-        let access_token = self.context.token_manager.get_token().await?;
-        let path = crate::client::WechatClient::append_access_token(
-            "/cgi-bin/message/custom/typing?access_token={}",
-            &access_token,
-        );
         let request = SetTypingRequest {
             touser: touser.to_string(),
             command,
         };
-        let response: CustomerServiceMessageResponse =
-            self.context.client.post(&path, &request).await?;
+        let response: CustomerServiceMessageResponse = self
+            .context
+            .authed_post("/cgi-bin/message/custom/typing", &request)
+            .await?;
         WechatError::check_api(response.errcode, &response.errmsg)?;
         Ok(())
     }

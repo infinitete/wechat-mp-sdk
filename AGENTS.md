@@ -1,210 +1,198 @@
-# AGENTS.md - AI Coding Agent Guidelines
+# AGENTS.md — wechat-mp-sdk
 
-## Project Overview
-
-Rust library crate (`applet`) using edition 2021, part of the WxSdk workspace.
-
----
-
-## Build, Lint, and Test Commands
-
-### Building
-```bash
-cargo check          # Fast error check (no binary)
-cargo build          # Debug build
-cargo build --release  # Optimized release
-cargo doc --open     # Build & open docs
-```
-
-### Linting (MUST pass before commit)
-```bash
-cargo clippy --all-targets --all-features -- -D warnings
-cargo fmt --check    # Format check
-cargo fmt            # Auto-format
-```
-
-### Testing
-```bash
-cargo test                    # All tests
-cargo test -- --nocapture     # With output
-cargo test test_name          # Single test (partial match)
-cargo test it_works           # Example: run specific test
-cargo test tests::            # Tests in module
-cargo test -- --ignored       # Run ignored tests
-cargo test --doc              # Doc tests only
-```
-
-### Dependencies
-```bash
-cargo add <crate>             # Add dependency
-cargo add --dev <crate>       # Dev dependency
-cargo update                  # Update deps
-```
+WeChat Mini Program server SDK for Rust. Library crate, edition 2021, MSRV 1.70.
+Covers **128 endpoints** across 24 API categories.
 
 ---
 
-## Code Style Guidelines
+## Build / Lint / Test
+
+```bash
+cargo check                                              # Fast type check
+cargo build                                              # Debug build
+cargo fmt                                                # Format (MUST run before commit)
+cargo fmt --check                                        # Format check only
+cargo clippy --all-targets --all-features -- -D warnings # Lint (warnings = errors)
+cargo test                                               # All tests (unit + integration)
+cargo test -- --nocapture                                # Tests with stdout
+cargo test test_name                                     # Single test by name substring
+cargo test tests::module_name                            # Tests in a module
+cargo test --test mock_tests                             # Single integration test file
+cargo test --doc                                         # Doc tests only
+cargo test -- --ignored                                  # Ignored tests only
+cargo doc --open                                         # Build & browse docs
+```
+
+### Pre-commit hook
+
+Runs `cargo fmt --check` → `cargo clippy` → `cargo test`. Install with `./setup-hooks.sh`.
+
+---
+
+## Architecture
+
+```
+src/
+├── lib.rs                # Crate root — re-exports public API
+├── error.rs              # WechatError + HttpError (thiserror)
+├── token.rs              # TokenManager — auto-cache, refresh, single-flight
+├── types/
+│   ├── ids.rs            # Newtype IDs: AppId, AppSecret, OpenId, UnionId, SessionKey, AccessToken
+│   └── watermark.rs      # Watermark verification
+├── client/
+│   ├── wechat_client.rs  # WechatClient + WechatClientBuilder — HTTP layer (reqwest)
+│   ├── wechat_mp.rs      # WechatMp — unified facade (128 API methods)
+│   └── builder.rs        # WechatMpBuilder
+├── api/
+│   ├── trait.rs          # WechatApi trait + WechatContext (shared client + token_manager)
+│   ├── common.rs         # Shared response/pagination types
+│   ├── auth.rs           # Login, stable token, session checks
+│   ├── user.rs           # Phone number, user info, encryption keys
+│   ├── customer_service.rs # Customer service messages
+│   ├── subscribe.rs      # Subscribe messages + template management
+│   ├── qrcode.rs         # Mini Program codes, URL Scheme/Link, short links
+│   ├── security.rs       # Content safety (text/image)
+│   ├── analytics.rs      # Visit trends, retention, user profiles
+│   └── ...               # 15+ more API modules (operations, ocr, cloud, live, etc.)
+├── middleware/
+│   ├── auth.rs           # Token injection middleware (Tower)
+│   ├── retry.rs          # Retry middleware
+│   └── logging.rs        # Request/response logging
+└── crypto/
+    └── aes.rs            # AES-128-CBC decryption + watermark
+```
+
+### Key patterns
+
+- **Builder pattern**: `WechatMp::builder().appid(...).secret(...).build()?`
+- **Newtype IDs**: `AppId`, `OpenId`, etc. validate on construction — compile-time misuse prevention
+- **API trait**: Each API module struct holds `Arc<WechatContext>`, implements `WechatApi` trait
+- **Single-flight token**: `TokenManager` merges concurrent refresh calls via `RwLock` + `Notify`
+- **Tower middleware**: Auth, retry, logging composed via `ServiceBuilder`
+- **Async everywhere**: All I/O is tokio-based; `WechatClient::get/post` use `DeserializeOwned`
+
+---
+
+## Code Style
 
 ### Formatting
-- `cargo fmt` before every commit - NO exceptions
-- Max line width: 100 chars | 4 spaces | K&R braces
+- `cargo fmt` before every commit — line width 100, 4-space indent, K&R braces
 
-### Imports (group with blank lines)
+### Imports (group with blank lines between)
 ```rust
-// 1. Standard library
-use std::collections::HashMap;
+// 1. std
+use std::sync::Arc;
+
 // 2. External crates
 use serde::{Deserialize, Serialize};
-// 3. Current crate
-use crate::config::Settings;
-// 4. Parent module
-use super::utils::helper;
-```
-
-### Naming Conventions
-| Type | Convention | Example |
-|------|------------|---------|
-| Crates/Modules | snake_case | `wx_sdk`, `auth_handler` |
-| Types/Traits | PascalCase | `UserProfile`, `FromStr` |
-| Functions/Variables | snake_case | `get_user_by_id()` |
-| Constants/Static | SCREAMING_SNAKE_CASE | `MAX_RETRIES` |
-| Lifetimes | lowercase | `'a`, `'static` |
-| Type params | uppercase | `T`, `E`, `K` |
-
-### Error Handling
-```rust
 use thiserror::Error;
 
-#[derive(Debug, Error)]
-pub enum AppError {
-    #[error("User not found: {0}")]
-    UserNotFound(String),
-    #[error("IO error: {0}")]
-    Io(#[from] std::io::Error),
-}
+// 3. Crate-internal
+use crate::error::WechatError;
 
-// Use ? for propagation
-pub fn process_file(path: &Path) -> Result<String, AppError> {
-    let content = std::fs::read_to_string(path)?;
-    Ok(content)
-}
-
-// AVOID unwrap()/expect() in library code (OK in tests only)
+// 4. Parent/sibling
+use super::common::ApiResponseBase;
 ```
+
+### Naming
+| Item              | Convention           | Example                        |
+|-------------------|----------------------|--------------------------------|
+| Crates/Modules    | snake_case           | `wechat_mp_sdk`, `auth`       |
+| Types/Traits      | PascalCase           | `WechatMp`, `WechatApi`       |
+| Functions/Vars    | snake_case           | `get_phone_number()`           |
+| Constants         | SCREAMING_SNAKE_CASE | `MAX_RETRIES`                  |
+| Type params       | Single uppercase     | `T`, `E`                       |
+
+### Error handling
+- Use `thiserror` for all error enums (see `WechatError` in `src/error.rs`)
+- Propagate with `?` — never `unwrap()`/`expect()` in library code (OK in tests)
+- Every API response checks `errcode != 0` → returns `WechatError::Api { code, message }`
+- Binary responses (QR images, media) check content-type to distinguish success/error JSON
+
+### Type safety
+- **Newtype pattern** for all IDs — validated on `::new()`, `::new_unchecked()` for trusted input
+- Sensitive values (`AppSecret`, `SessionKey`) redact in `Debug`/`Display` impls
+- `#[non_exhaustive]` on public response structs for future compatibility
+- `#[serde(default)]` on optional response fields — WeChat API may omit fields
 
 ### Documentation
 ```rust
-/// Brief description.
+/// Brief one-line description.
 ///
 /// # Arguments
-/// * `name` - Parameter description
+/// * `js_code` - The code from wx.login()
 ///
-/// # Returns / # Errors / # Examples
-pub fn function_name(name: &str) -> Result<(), AppError> { }
+/// # Errors
+/// Returns `WechatError::Api` if errcode is non-zero.
+pub async fn login(&self, js_code: &str) -> Result<LoginResponse, WechatError> { ... }
 ```
 
-### Type Safety
-```rust
-// PREFERRED: Strong types / newtype pattern
-pub struct UserId(String);
+---
 
-#[derive(Debug, Clone, PartialEq)]
-pub struct Percentage(u8);
+## Testing
 
-impl Percentage {
-    pub fn new(value: u8) -> Result<Self, AppError> {
-        if value > 100 { return Err(AppError::InvalidPercentage(value)); }
-        Ok(Self(value))
-    }
-}
+### Unit tests
+Inline `#[cfg(test)] mod tests` in each module. Pattern:
 
-// NEVER suppress type errors
-```
-
-### Module Organization
-```
-src/
-├── lib.rs      # Re-export public API
-├── error.rs    # Error types
-└── api/
-    ├── mod.rs
-    ├── user.rs
-    └── auth.rs
-```
-
-```rust
-// src/lib.rs
-mod error;
-pub use error::AppError;
-pub mod api;
-```
-
-### Testing
 ```rust
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
-    fn test_describes_expected_behavior() {
-        let result = process("input");
-        assert!(result.is_ok());
-    }
-
-    #[test]
-    fn test_with_result() -> Result<(), Box<dyn std::error::Error>> {
-        let value = parse("valid")?;
-        assert_eq!(value, 42);
-        Ok(())
+    fn test_response_parses_success() {
+        let json = r#"{"openid":"oABC","errcode":0,"errmsg":"ok"}"#;
+        let resp: LoginResponse = serde_json::from_str(json).unwrap();
+        assert!(resp.is_success());
     }
 }
 ```
 
----
+### Integration tests (`tests/`)
+Use **wiremock** for HTTP mocking — no real network calls:
 
-## Git Hooks
+```rust
+use wiremock::{MockServer, Mock, ResponseTemplate};
+use wiremock::matchers::{method, path, query_param};
 
-This project uses git hooks to ensure code quality before each commit.
-
-### Setup
-Run this once after cloning:
-```bash
-./setup-hooks.sh
+#[tokio::test]
+async fn test_mock_login() {
+    let mock_server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/sns/jscode2session"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({...})))
+        .mount(&mock_server).await;
+    let client = create_test_client(&mock_server).await;
+    // ... assert
+}
 ```
 
-### What the hooks check
-- `cargo fmt --check` - Code formatting
-- `cargo clippy` - Linting (warnings as errors)
-- `cargo test` - Unit tests
+Test fixtures: `AppId("wx1234567890abcdef")`, `AppSecret("test_secret_12345")`.
 
-### Bypass hooks (not recommended)
-```bash
-git commit --no-verify
-```
+### Adding a new API module
 
----
-
-## Pre-Commit Checklist
-1. `cargo fmt` - Format code
-2. `cargo clippy -- -D warnings` - No warnings
-3. `cargo test` - All tests pass
-4. `cargo doc` - Docs build cleanly
-
----
-
-## Common Dependencies
-- `thiserror` - Custom error types
-- `serde` - Serialization
-- `tokio` - Async runtime
+1. Create `src/api/{name}.rs` — define request/response structs + `{Name}Api` struct
+2. Implement `WechatApi` trait (return `&self.context` and `api_name()`)
+3. Register in `src/api/mod.rs` — `pub mod {name}; pub use {name}::{...};`
+4. Add facade methods to `src/client/wechat_mp.rs` (WechatMp delegates to XxxApi)
+5. Add unit tests inline, integration tests in `tests/`
 
 ---
 
-## File Structure
-```
-applet/
-├── Cargo.toml
-├── src/
-│   └── lib.rs
-├── tests/        # Integration tests
-└── examples/     # Examples
-```
+## Dependencies
+
+| Crate             | Purpose                              |
+|-------------------|--------------------------------------|
+| `reqwest`         | HTTP client (json + multipart)       |
+| `tokio`           | Async runtime                        |
+| `serde` / `serde_json` | Serialization                  |
+| `thiserror`       | Error derive macros                  |
+| `tower`           | Middleware composition               |
+| `aes` / `cbc`     | AES-128-CBC decryption               |
+| `base64`          | Base64 encoding/decoding             |
+| `wiremock` (dev)  | HTTP mock server for tests           |
+
+## Features
+
+- `default = ["rustls-tls"]` — rustls TLS backend
+- `native-tls` — system native TLS backend

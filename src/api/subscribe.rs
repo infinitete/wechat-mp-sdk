@@ -314,12 +314,6 @@ impl SubscribeApi {
     /// subscribe_api.send(options).await?;
     /// ```
     pub async fn send(&self, options: SubscribeMessageOptions) -> Result<(), WechatError> {
-        let access_token = self.context.token_manager.get_token().await?;
-        let path = crate::client::WechatClient::append_access_token(
-            "/cgi-bin/message/subscribe/send?access_token={}",
-            &access_token,
-        );
-
         let request = SubscribeMessageRequest {
             touser: options.touser,
             template_id: options.template_id,
@@ -329,7 +323,10 @@ impl SubscribeApi {
             lang: options.lang,
         };
 
-        let response: SubscribeMessageResponse = self.context.client.post(&path, &request).await?;
+        let response: SubscribeMessageResponse = self
+            .context
+            .authed_post("/cgi-bin/message/subscribe/send", &request)
+            .await?;
 
         WechatError::check_api(response.errcode, &response.errmsg)?;
 
@@ -360,19 +357,16 @@ impl SubscribeApi {
         kid_list: Option<Vec<i32>>,
         scene_desc: Option<&str>,
     ) -> Result<String, WechatError> {
-        let access_token = self.context.token_manager.get_token().await?;
-        let path = crate::client::WechatClient::append_access_token(
-            "/wxaapi/newtmpl/addtemplate?access_token={}",
-            &access_token,
-        );
-
         let request = AddTemplateRequest {
             tid: tid.to_string(),
             kid_list,
             scene_desc: scene_desc.map(|s| s.to_string()),
         };
 
-        let response: AddTemplateResponse = self.context.client.post(&path, &request).await?;
+        let response: AddTemplateResponse = self
+            .context
+            .authed_post("/wxaapi/newtmpl/addtemplate", &request)
+            .await?;
 
         WechatError::check_api(response.errcode, &response.errmsg)?;
 
@@ -395,13 +389,10 @@ impl SubscribeApi {
     /// }
     /// ```
     pub async fn get_template_list(&self) -> Result<Vec<TemplateInfo>, WechatError> {
-        let access_token = self.context.token_manager.get_token().await?;
-        let path = crate::client::WechatClient::append_access_token(
-            "/wxaapi/newtmpl/gettemplate?access_token={}",
-            &access_token,
-        );
-
-        let response: TemplateListResponse = self.context.client.get(&path, &[]).await?;
+        let response: TemplateListResponse = self
+            .context
+            .authed_get("/wxaapi/newtmpl/gettemplate", &[])
+            .await?;
 
         WechatError::check_api(response.errcode, &response.errmsg)?;
 
@@ -421,12 +412,6 @@ impl SubscribeApi {
     /// subscribe_api.delete_template("pri_tmpl_id_123").await?;
     /// ```
     pub async fn delete_template(&self, pri_tmpl_id: &str) -> Result<(), WechatError> {
-        let access_token = self.context.token_manager.get_token().await?;
-        let path = crate::client::WechatClient::append_access_token(
-            "/wxaapi/newtmpl/deltemplate?access_token={}",
-            &access_token,
-        );
-
         #[derive(Serialize)]
         struct Request {
             #[serde(rename = "pri_tmpl_id")]
@@ -435,9 +420,8 @@ impl SubscribeApi {
 
         let response: SubscribeMessageResponse = self
             .context
-            .client
-            .post(
-                &path,
+            .authed_post(
+                "/wxaapi/newtmpl/deltemplate",
                 &Request {
                     pri_tmpl_id: pri_tmpl_id.to_string(),
                 },
@@ -465,13 +449,10 @@ impl SubscribeApi {
     /// }
     /// ```
     pub async fn get_category(&self) -> Result<Vec<CategoryInfo>, WechatError> {
-        let access_token = self.context.token_manager.get_token().await?;
-        let path = crate::client::WechatClient::append_access_token(
-            "/wxaapi/newtmpl/getcategory?access_token={}",
-            &access_token,
-        );
-
-        let response: CategoryListResponse = self.context.client.get(&path, &[]).await?;
+        let response: CategoryListResponse = self
+            .context
+            .authed_get("/wxaapi/newtmpl/getcategory", &[])
+            .await?;
 
         WechatError::check_api(response.errcode, &response.errmsg)?;
 
@@ -482,11 +463,10 @@ impl SubscribeApi {
         &self,
         tid: &str,
     ) -> Result<PubTemplateKeywordResponse, WechatError> {
-        let access_token = self.context.token_manager.get_token().await?;
-        let path = "/wxaapi/newtmpl/getpubtemplatekeywords";
-        let query = [("access_token", access_token.as_str()), ("tid", tid)];
-
-        let response: PubTemplateKeywordResponse = self.context.client.get(path, &query).await?;
+        let response: PubTemplateKeywordResponse = self
+            .context
+            .authed_get("/wxaapi/newtmpl/getpubtemplatekeywords", &[("tid", tid)])
+            .await?;
 
         WechatError::check_api(response.errcode, &response.errmsg)?;
 
@@ -499,8 +479,6 @@ impl SubscribeApi {
         start: i32,
         limit: i32,
     ) -> Result<PubTemplateTitleListResponse, WechatError> {
-        let access_token = self.context.token_manager.get_token().await?;
-        let path = "/wxaapi/newtmpl/getpubtemplatetitles";
         let ids_text = ids
             .iter()
             .map(std::string::ToString::to_string)
@@ -508,14 +486,17 @@ impl SubscribeApi {
             .join(",");
         let start_text = start.to_string();
         let limit_text = limit.to_string();
-        let query = [
-            ("access_token", access_token.as_str()),
-            ("ids", ids_text.as_str()),
-            ("start", start_text.as_str()),
-            ("limit", limit_text.as_str()),
-        ];
-
-        let response: PubTemplateTitleListResponse = self.context.client.get(path, &query).await?;
+        let response: PubTemplateTitleListResponse = self
+            .context
+            .authed_get(
+                "/wxaapi/newtmpl/getpubtemplatetitles",
+                &[
+                    ("ids", ids_text.as_str()),
+                    ("start", start_text.as_str()),
+                    ("limit", limit_text.as_str()),
+                ],
+            )
+            .await?;
 
         WechatError::check_api(response.errcode, &response.errmsg)?;
 
@@ -551,9 +532,7 @@ impl SubscribeApi {
         endpoint: &str,
         body: &B,
     ) -> Result<UserNotifyResponse, WechatError> {
-        let access_token = self.context.token_manager.get_token().await?;
-        let path = crate::client::WechatClient::append_access_token(endpoint, &access_token);
-        let response: UserNotifyResponse = self.context.client.post(&path, body).await?;
+        let response: UserNotifyResponse = self.context.authed_post(endpoint, body).await?;
 
         WechatError::check_api(response.errcode, &response.errmsg)?;
 

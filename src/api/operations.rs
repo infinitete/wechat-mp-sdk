@@ -127,9 +127,7 @@ impl OperationsApi {
     }
 
     async fn get_json(&self, endpoint: &str) -> Result<OperationsResponse, WechatError> {
-        let access_token = self.context.token_manager.get_token().await?;
-        let query = [("access_token", access_token.as_str())];
-        let response: OperationsResponse = self.context.client.get(endpoint, &query).await?;
+        let response: OperationsResponse = self.context.authed_get(endpoint, &[]).await?;
         WechatError::check_api(response.errcode, &response.errmsg)?;
         Ok(response)
     }
@@ -139,9 +137,7 @@ impl OperationsApi {
         endpoint: &str,
         body: &B,
     ) -> Result<OperationsResponse, WechatError> {
-        let access_token = self.context.token_manager.get_token().await?;
-        let path = crate::client::WechatClient::append_access_token(endpoint, &access_token);
-        let response: OperationsResponse = self.context.client.post(&path, body).await?;
+        let response: OperationsResponse = self.context.authed_post(endpoint, body).await?;
         WechatError::check_api(response.errcode, &response.errmsg)?;
         Ok(response)
     }

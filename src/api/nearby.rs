@@ -92,9 +92,7 @@ impl NearbyApi {
         endpoint: &str,
         body: &B,
     ) -> Result<NearbyResponse, WechatError> {
-        let access_token = self.context.token_manager.get_token().await?;
-        let path = crate::client::WechatClient::append_access_token(endpoint, &access_token);
-        let response: NearbyResponse = self.context.client.post(&path, body).await?;
+        let response: NearbyResponse = self.context.authed_post(endpoint, body).await?;
         WechatError::check_api(response.errcode, &response.errmsg)?;
         Ok(response)
     }
