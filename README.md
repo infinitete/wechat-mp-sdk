@@ -6,7 +6,7 @@
 
 微信小程序服务端 SDK for Rust。
 
-当前版本：`0.1.0`（开发中，尚未发布）。
+当前版本：`0.2.0`
 
 ## 最近更新
 
@@ -40,7 +40,7 @@
 
 ```toml
 [dependencies]
-wechat-mp-sdk = "0.1"
+wechat-mp-sdk = "0.2"
 ```
 
 ### 可选依赖
@@ -48,7 +48,7 @@ wechat-mp-sdk = "0.1"
 如需启用额外的 HTTP Client 功能：
 
 ```toml
-wechat-mp-sdk = { version = "0.1", features = ["native-tls"] }
+wechat-mp-sdk = { version = "0.2", features = ["native-tls"] }
 ```
 
 ## 快速开始
