@@ -22,6 +22,8 @@ use std::fmt;
 use std::sync::Arc;
 use thiserror::Error;
 
+use crate::token::RETRYABLE_ERROR_CODES;
+
 /// HTTP/transport error wrapper
 ///
 /// Wraps either a reqwest HTTP error or a response decode error.
@@ -63,6 +65,13 @@ impl std::error::Error for HttpError {
 impl From<reqwest::Error> for HttpError {
     fn from(e: reqwest::Error) -> Self {
         HttpError::Reqwest(Arc::new(e))
+    }
+}
+
+impl HttpError {
+    /// Returns true when this HTTP error represents a transient transport failure.
+    pub fn is_transient(&self) -> bool {
+        matches!(self, HttpError::Reqwest(_))
     }
 }
 
@@ -184,6 +193,15 @@ impl WechatError {
             Ok(())
         }
     }
+
+    /// Returns true when this error is safe to retry.
+    pub fn is_transient(&self) -> bool {
+        match self {
+            WechatError::Http(err) => err.is_transient(),
+            WechatError::Api { code, .. } => RETRYABLE_ERROR_CODES.contains(code),
+            _ => false,
+        }
+    }
 }
 
 impl From<reqwest::Error> for WechatError {
@@ -195,6 +213,7 @@ impl From<reqwest::Error> for WechatError {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::token::RETRYABLE_ERROR_CODES;
 
     #[test]
     fn test_invalid_appid_error_message() {
@@ -277,5 +296,65 @@ mod tests {
 
         let decode_err = HttpError::Decode("test".to_string());
         assert!(decode_err.source().is_none());
+    }
+
+    #[test]
+    fn test_http_error_is_transient() {
+        let reqwest_error = reqwest::Client::new().get("http://").build().unwrap_err();
+        let reqwest_http_error = HttpError::Reqwest(Arc::new(reqwest_error));
+        assert!(reqwest_http_error.is_transient());
+
+        let decode_http_error = HttpError::Decode("bad json".to_string());
+        assert!(!decode_http_error.is_transient());
+    }
+
+    #[test]
+    fn test_wechat_error_is_transient_for_http_variants() {
+        let reqwest_error = reqwest::Client::new().get("http://").build().unwrap_err();
+        let transient_error = WechatError::Http(HttpError::Reqwest(Arc::new(reqwest_error)));
+        assert!(transient_error.is_transient());
+
+        let non_transient_error = WechatError::Http(HttpError::Decode("bad json".to_string()));
+        assert!(!non_transient_error.is_transient());
+    }
+
+    #[test]
+    fn test_wechat_error_is_transient_for_api_and_all_other_variants() {
+        for &code in RETRYABLE_ERROR_CODES {
+            let retryable = WechatError::Api {
+                code,
+                message: "retryable".to_string(),
+            };
+            assert!(
+                retryable.is_transient(),
+                "code {} should be transient",
+                code
+            );
+        }
+
+        let non_retryable_api = WechatError::Api {
+            code: 40013,
+            message: "invalid appid".to_string(),
+        };
+        assert!(!non_retryable_api.is_transient());
+
+        let json_error = serde_json::from_str::<serde_json::Value>("not json").unwrap_err();
+        let non_transient_variants = [
+            WechatError::Json(json_error),
+            WechatError::Token("token".to_string()),
+            WechatError::Config("config".to_string()),
+            WechatError::Signature("sig".to_string()),
+            WechatError::Crypto("crypto".to_string()),
+            WechatError::InvalidAppId("appid".to_string()),
+            WechatError::InvalidOpenId("openid".to_string()),
+            WechatError::InvalidAccessToken("token".to_string()),
+            WechatError::InvalidAppSecret("secret".to_string()),
+            WechatError::InvalidSessionKey("session".to_string()),
+            WechatError::InvalidUnionId("union".to_string()),
+        ];
+
+        for error in non_transient_variants {
+            assert!(!error.is_transient());
+        }
     }
 }
