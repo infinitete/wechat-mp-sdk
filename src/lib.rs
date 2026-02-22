@@ -93,6 +93,7 @@ pub mod error;
 pub mod middleware;
 pub mod token;
 pub mod types;
+mod utils;
 
 pub use client::{WechatClient, WechatClientBuilder, WechatMp, WechatMpBuilder};
 pub use error::WechatError;

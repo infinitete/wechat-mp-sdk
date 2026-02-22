@@ -19,11 +19,12 @@ use std::pin::Pin;
 use std::task::Context;
 use std::task::Poll;
 
-use tokio::time::{sleep, Duration};
+use tokio::time::sleep;
 use tower::{Layer, Service};
 
 use crate::error::WechatError;
 use crate::token::RETRYABLE_ERROR_CODES;
+use crate::utils::jittered_delay;
 
 /// Middleware that retries requests on 5xx and retryable errors.
 #[derive(Clone)]
@@ -182,10 +183,11 @@ where
                         if is_retryable {
                             last_error = Some(e);
                             if attempt < max_retries - 1 {
-                                // Exponential backoff
-                                let delay =
-                                    delay_ms * 2u64.pow(u32::try_from(attempt).unwrap_or(u32::MAX));
-                                sleep(Duration::from_millis(delay)).await;
+                                sleep(jittered_delay(
+                                    delay_ms,
+                                    u32::try_from(attempt).unwrap_or(u32::MAX),
+                                ))
+                                .await;
                             }
                         } else {
                             // Non-retryable error, return immediately

@@ -50,6 +50,7 @@ use tokio::sync::{Mutex, Notify, RwLock};
 use crate::client::WechatClient;
 use crate::error::WechatError;
 use crate::types::AccessToken;
+use crate::utils::jittered_delay;
 
 const MAX_RETRIES: u32 = 3;
 const RETRY_DELAY_MS: u64 = 100;
@@ -254,10 +255,7 @@ impl TokenManager {
                             message: response.errmsg,
                         });
                         if attempt < self.max_retries - 1 {
-                            tokio::time::sleep(Duration::from_millis(
-                                self.retry_delay_ms * 2u64.pow(attempt),
-                            ))
-                            .await;
+                            tokio::time::sleep(jittered_delay(self.retry_delay_ms, attempt)).await;
                         }
                     } else {
                         return Err(WechatError::Api {
@@ -269,10 +267,7 @@ impl TokenManager {
                 Err(WechatError::Http(e)) => {
                     last_error = Some(WechatError::Http(e));
                     if attempt < self.max_retries - 1 {
-                        tokio::time::sleep(Duration::from_millis(
-                            self.retry_delay_ms * 2u64.pow(attempt),
-                        ))
-                        .await;
+                        tokio::time::sleep(jittered_delay(self.retry_delay_ms, attempt)).await;
                     }
                 }
                 Err(e) => return Err(e),
