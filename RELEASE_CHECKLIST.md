@@ -1,4 +1,4 @@
-# Release Checklist — wechat-mp-sdk v0.3.0
+# Release Checklist — wechat-mp-sdk v0.1.0
 
 ## Endpoint Parity Summary
 
