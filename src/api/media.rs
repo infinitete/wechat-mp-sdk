@@ -37,7 +37,7 @@ use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
 
-use crate::error::WechatError;
+use crate::error::{HttpError, WechatError};
 
 use super::{WechatApi, WechatContext};
 
@@ -142,16 +142,15 @@ impl MediaApi {
         data: &[u8],
     ) -> Result<MediaUploadResponse, WechatError> {
         let access_token = self.context.token_manager.get_token().await?;
-        let path = crate::client::WechatClient::append_access_token(
-            "/cgi-bin/media/upload",
-            &access_token,
-        );
         let url = format!(
-            "{}{}&type={}",
+            "{}{}",
             self.context.client.base_url(),
-            path,
-            media_type.as_str()
+            "/cgi-bin/media/upload"
         );
+        let query = [
+            ("access_token", access_token.as_str()),
+            ("type", media_type.as_str()),
+        ];
 
         let part = reqwest::multipart::Part::bytes(data.to_vec()).file_name(filename.to_string());
         let form = reqwest::multipart::Form::new().part("media", part);
@@ -161,13 +160,23 @@ impl MediaApi {
             .client
             .http()
             .post(&url)
+            .query(&query)
             .multipart(form)
             .build()?;
         let response = self.context.client.send_request(request).await?;
+        if let Err(error) = response.error_for_status_ref() {
+            return Err(error.into());
+        }
 
-        let result: MediaUploadResponse = response.json().await?;
+        let value: serde_json::Value = response.json().await?;
+        if let Some((code, message)) = parse_api_error_from_json_value(&value) {
+            return Err(WechatError::Api { code, message });
+        }
 
-        WechatError::check_api(result.errcode, &result.errmsg)?;
+        let result: MediaUploadResponse = serde_json::from_value(value)
+            .map_err(|error| WechatError::Http(HttpError::Decode(error.to_string())))?;
+
+        WechatError::check_api(result.errcode(), result.errmsg())?;
 
         Ok(result)
     }
@@ -195,41 +204,51 @@ impl MediaApi {
     /// ```
     pub async fn get_temp_media(&self, media_id: &str) -> Result<Vec<u8>, WechatError> {
         let access_token = self.context.token_manager.get_token().await?;
-        let path =
-            crate::client::WechatClient::append_access_token("/cgi-bin/media/get", &access_token);
-        let url = format!(
-            "{}{}&media_id={}",
-            self.context.client.base_url(),
-            path,
-            media_id
-        );
+        let url = format!("{}{}", self.context.client.base_url(), "/cgi-bin/media/get");
+        let query = [
+            ("access_token", access_token.as_str()),
+            ("media_id", media_id),
+        ];
 
-        let request = self.context.client.http().get(&url).build()?;
+        let request = self.context.client.http().get(&url).query(&query).build()?;
         let response = self.context.client.send_request(request).await?;
-
-        #[derive(Deserialize)]
-        struct ErrorResponse {
-            errcode: i32,
-            errmsg: String,
-        }
-
-        let content_type = response
-            .headers()
-            .get("content-type")
-            .and_then(|v| v.to_str().ok())
-            .unwrap_or("");
-
-        if content_type.contains("application/json") {
-            let error: ErrorResponse = response.json().await?;
-            return Err(WechatError::Api {
-                code: error.errcode,
-                message: error.errmsg,
-            });
+        if let Err(error) = response.error_for_status_ref() {
+            return Err(error.into());
         }
 
         let bytes = response.bytes().await?;
+        if let Some((code, message)) = parse_api_error_from_json_bytes(&bytes) {
+            return Err(WechatError::Api { code, message });
+        }
+
         Ok(bytes.to_vec())
     }
+}
+
+fn parse_api_error_from_json_bytes(bytes: &[u8]) -> Option<(i32, String)> {
+    let value: serde_json::Value = serde_json::from_slice(bytes).ok()?;
+    parse_api_error_from_json_value(&value)
+}
+
+fn parse_api_error_from_json_value(value: &serde_json::Value) -> Option<(i32, String)> {
+    let raw_code = value.get("errcode")?.as_i64()?;
+    if raw_code == 0 {
+        return None;
+    }
+
+    let code = i32::try_from(raw_code).unwrap_or_else(|_| {
+        if raw_code.is_negative() {
+            i32::MIN
+        } else {
+            i32::MAX
+        }
+    });
+    let message = value
+        .get("errmsg")
+        .and_then(|v| v.as_str())
+        .unwrap_or("unknown error")
+        .to_string();
+    Some((code, message))
 }
 
 impl WechatApi for MediaApi {

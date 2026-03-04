@@ -153,6 +153,21 @@ pub fn verify_watermark(data: &DecryptedUserData, expected_appid: &str) -> Resul
     Ok(())
 }
 
+/// Verify watermark appid and timestamp freshness.
+///
+/// `max_skew_seconds` defines the maximum allowed difference between
+/// `now_timestamp` and `watermark.timestamp`.
+pub fn verify_watermark_with_max_skew(
+    data: &DecryptedUserData,
+    expected_appid: &str,
+    now_timestamp: i64,
+    max_skew_seconds: i64,
+) -> Result<(), WechatError> {
+    verify_watermark(data, expected_appid)?;
+    data.watermark
+        .verify_timestamp_freshness(now_timestamp, max_skew_seconds)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -169,6 +184,30 @@ mod tests {
     #[test]
     fn test_invalid_base64_encrypted_data() {
         let result = decrypt_user_data("MTIzNDU2Nzg5MDEyMzQ1Ng==", "not-valid!!!", "iv");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_verify_watermark_with_max_skew_success() {
+        let data = DecryptedUserData::new(
+            serde_json::json!({ "openId": "o123" }),
+            Watermark::new(1_700_000_000, "wx1234567890abcdef"),
+        );
+
+        let result =
+            verify_watermark_with_max_skew(&data, "wx1234567890abcdef", 1_700_000_120, 180);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_verify_watermark_with_max_skew_rejects_stale() {
+        let data = DecryptedUserData::new(
+            serde_json::json!({ "openId": "o123" }),
+            Watermark::new(1_700_000_000, "wx1234567890abcdef"),
+        );
+
+        let result =
+            verify_watermark_with_max_skew(&data, "wx1234567890abcdef", 1_700_000_301, 300);
         assert!(result.is_err());
     }
 }

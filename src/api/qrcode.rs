@@ -301,22 +301,14 @@ impl QrcodeApi {
         body: &T,
     ) -> Result<Vec<u8>, WechatError> {
         let response = self.context.authed_post_raw(endpoint, body).await?;
-
-        let content_type = response
-            .headers()
-            .get("content-type")
-            .and_then(|v| v.to_str().ok())
-            .unwrap_or("");
-
-        if content_type.contains("application/json") {
-            let error: ErrorResponse = response.json().await?;
-            return Err(WechatError::Api {
-                code: error.errcode,
-                message: error.errmsg,
-            });
+        if let Err(error) = response.error_for_status_ref() {
+            return Err(error.into());
         }
 
         let bytes = response.bytes().await?;
+        if let Some((code, message)) = parse_api_error_from_json_bytes(&bytes) {
+            return Err(WechatError::Api { code, message });
+        }
         Ok(bytes.to_vec())
     }
 }
@@ -331,10 +323,26 @@ impl WechatApi for QrcodeApi {
     }
 }
 
-#[derive(Debug, Deserialize)]
-struct ErrorResponse {
-    errcode: i32,
-    errmsg: String,
+fn parse_api_error_from_json_bytes(bytes: &[u8]) -> Option<(i32, String)> {
+    let value: serde_json::Value = serde_json::from_slice(bytes).ok()?;
+    let raw_code = value.get("errcode")?.as_i64()?;
+    if raw_code == 0 {
+        return None;
+    }
+
+    let code = i32::try_from(raw_code).unwrap_or_else(|_| {
+        if raw_code.is_negative() {
+            i32::MIN
+        } else {
+            i32::MAX
+        }
+    });
+    let message = value
+        .get("errmsg")
+        .and_then(|v| v.as_str())
+        .unwrap_or("unknown error")
+        .to_string();
+    Some((code, message))
 }
 
 /// Scheme info from queryScheme

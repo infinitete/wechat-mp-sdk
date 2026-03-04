@@ -71,7 +71,13 @@ impl From<reqwest::Error> for HttpError {
 impl HttpError {
     /// Returns true when this HTTP error represents a transient transport failure.
     pub fn is_transient(&self) -> bool {
-        matches!(self, HttpError::Reqwest(_))
+        match self {
+            HttpError::Reqwest(error) => match error.status() {
+                Some(status) => status.is_server_error() || status.as_u16() == 429,
+                None => true,
+            },
+            HttpError::Decode(_) => false,
+        }
     }
 }
 
@@ -214,6 +220,8 @@ impl From<reqwest::Error> for WechatError {
 mod tests {
     use super::*;
     use crate::token::RETRYABLE_ERROR_CODES;
+    use wiremock::matchers::{method, path};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
 
     #[test]
     fn test_invalid_appid_error_message() {
@@ -316,6 +324,48 @@ mod tests {
 
         let non_transient_error = WechatError::Http(HttpError::Decode("bad json".to_string()));
         assert!(!non_transient_error.is_transient());
+    }
+
+    #[tokio::test]
+    async fn test_http_reqwest_status_503_is_transient() {
+        let mock_server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/status-503"))
+            .respond_with(ResponseTemplate::new(503))
+            .mount(&mock_server)
+            .await;
+
+        let err = reqwest::Client::new()
+            .get(format!("{}/status-503", mock_server.uri()))
+            .send()
+            .await
+            .unwrap()
+            .error_for_status()
+            .unwrap_err();
+
+        let http_error = HttpError::Reqwest(Arc::new(err));
+        assert!(http_error.is_transient());
+    }
+
+    #[tokio::test]
+    async fn test_http_reqwest_status_400_is_not_transient() {
+        let mock_server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/status-400"))
+            .respond_with(ResponseTemplate::new(400))
+            .mount(&mock_server)
+            .await;
+
+        let err = reqwest::Client::new()
+            .get(format!("{}/status-400", mock_server.uri()))
+            .send()
+            .await
+            .unwrap()
+            .error_for_status()
+            .unwrap_err();
+
+        let http_error = HttpError::Reqwest(Arc::new(err));
+        assert!(!http_error.is_transient());
     }
 
     #[test]

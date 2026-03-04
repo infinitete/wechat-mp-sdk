@@ -10,9 +10,11 @@
 
 ## 最近更新
 
-- 统一重试判定逻辑：中间件与 Token 管理均基于 `is_transient()` 判断是否可重试
-- 修复回退抖动实现：采用确定性退避 + 轻量随机抖动，避免并发请求同节奏重试
-- 增补回归测试：覆盖 `HttpError::Decode` 不重试与抖动分布行为
+- 修复 Token 单飞刷新在调用取消场景下的潜在等待卡死，提升并发可用性
+- 强化临时素材/小程序码二进制接口错误识别：先检查 HTTP 状态码，再从响应体识别 `errcode/errmsg`
+- 新增 watermark 时效校验能力：`Watermark::verify_timestamp_freshness` 与 `verify_watermark_with_max_skew`
+- 鉴权中间件日志脱敏：Token 拉取失败时不再输出可能含敏感参数的原始错误字符串
+- 重试语义收敛：仅网络类错误与 HTTP `5xx/429` 视为瞬时错误；`with_max_retries(0)` 表示“执行一次但不重试”
 
 ## 功能特性
 
@@ -258,6 +260,7 @@ wechat.invalidate_token().await;
 - **自动刷新**: Token 过期前自动刷新（默认提前 5 分钟）
 - **并发安全**: 多个并发请求共享同一 Token
 - **单飞模式**: 并发请求只触发一次 API 调用
+- **取消安全**: 任一调用方取消不会导致单飞状态悬挂
 - **智能重试**: 自动重试临时性错误（如系统繁忙 -1、频率限制 45009）
 - **精确重试边界**: 对 `HttpError::Decode` 等非瞬时错误立即返回，不做无效重试
 
@@ -275,6 +278,12 @@ let decrypted = wechat
 // 校验 watermark
 wechat.verify_watermark(&decrypted)?;
 
+// 建议同时校验 watermark 时间新鲜度（示例：允许 5 分钟时钟偏差）
+let now_ts = std::time::SystemTime::now()
+    .duration_since(std::time::UNIX_EPOCH)?
+    .as_secs() as i64;
+decrypted.watermark.verify_timestamp_freshness(now_ts, 300)?;
+
 // 访问解密后的数据
 if let Some(open_id) = &decrypted.open_id {
     println!("OpenID: {}", open_id);
@@ -290,7 +299,9 @@ SDK 采用四层错误模型，按调用顺序分为：
 3. **解码错误** (`WechatError::Http(HttpError::Decode)`): 响应体 JSON 格式正确但与预期类型不匹配
 4. **API 业务错误** (`WechatError::Api { code, message }`): 微信返回 errcode != 0
 
-> 注：对媒体下载接口而言，若微信返回 JSON 错误体（例如 `errcode`/`errmsg`），SDK 会按业务错误返回 `WechatError::Api`。
+> 注：对媒体下载/小程序码等二进制接口，SDK 会先校验 HTTP 状态码。  
+> - 非 2xx：返回 `WechatError::Http(HttpError::Reqwest)`  
+> - 2xx 且响应体含 `errcode != 0`：返回 `WechatError::Api { code, message }`
 
 ```rust
 use wechat_mp_sdk::WechatError;
@@ -326,6 +337,7 @@ match result {
 
 - **区分传输错误和业务错误**: 非 2xx 响应码属于 `HttpError::Reqwest`，而不是 `WechatError::Api`
 - **只对瞬时错误重试**: 可通过 `error.is_transient()` 统一判断是否应该重试
+- **重试次数语义**: `RetryMiddleware::with_max_retries(0)` 表示禁用重试，但仍会执行首个请求
 - **先处理网络错误，再处理业务错误**: 网络问题可能导致无法获取完整的业务错误信息
 - **使用 `?` 运算符传播错误**: 错误类型会自动转换
 

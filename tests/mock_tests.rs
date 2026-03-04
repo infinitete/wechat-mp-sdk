@@ -7,7 +7,8 @@ use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Arc;
 
 use wechat_mp_sdk::api::auth::AuthApi;
-use wechat_mp_sdk::api::media::MediaApi;
+use wechat_mp_sdk::api::media::{MediaApi, MediaType};
+use wechat_mp_sdk::api::qrcode::{QrcodeApi, QrcodeOptions};
 use wechat_mp_sdk::api::user::UserApi;
 use wechat_mp_sdk::api::WechatContext;
 use wechat_mp_sdk::client::WechatClient;
@@ -404,6 +405,216 @@ async fn test_media_get_temp_media_returns_api_error_for_application_json() {
         Err(WechatError::Api { code, message }) => {
             assert_eq!(code, 40007);
             assert_eq!(message, "invalid media_id");
+        }
+        other => panic!("expected WechatError::Api, got: {:?}", other),
+    }
+}
+
+#[tokio::test]
+async fn test_media_get_temp_media_returns_error_for_non_2xx_status() {
+    let mock_server = MockServer::start().await;
+
+    Mock::given(method("GET"))
+        .and(path("/cgi-bin/token"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "access_token": "mock_media_token",
+            "expires_in": 7200
+        })))
+        .mount(&mock_server)
+        .await;
+
+    Mock::given(method("GET"))
+        .and(path("/cgi-bin/media/get"))
+        .and(query_param("access_token", "mock_media_token"))
+        .and(query_param("media_id", "status_error_media"))
+        .respond_with(ResponseTemplate::new(404).set_body_raw(b"missing", "image/jpeg"))
+        .mount(&mock_server)
+        .await;
+
+    let context = create_test_context(&mock_server).await;
+    let media_api = MediaApi::new(context);
+
+    let result = media_api.get_temp_media("status_error_media").await;
+
+    assert!(matches!(result, Err(WechatError::Http(_))));
+}
+
+#[tokio::test]
+async fn test_media_get_temp_media_detects_json_error_when_content_type_is_not_json() {
+    let mock_server = MockServer::start().await;
+
+    Mock::given(method("GET"))
+        .and(path("/cgi-bin/token"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "access_token": "mock_media_token",
+            "expires_in": 7200
+        })))
+        .mount(&mock_server)
+        .await;
+
+    Mock::given(method("GET"))
+        .and(path("/cgi-bin/media/get"))
+        .and(query_param("access_token", "mock_media_token"))
+        .and(query_param("media_id", "wrong_content_type_error"))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .insert_header("content-type", "text/plain")
+                .set_body_raw(
+                    r#"{"errcode": 40007, "errmsg": "invalid media_id"}"#,
+                    "text/plain",
+                ),
+        )
+        .mount(&mock_server)
+        .await;
+
+    let context = create_test_context(&mock_server).await;
+    let media_api = MediaApi::new(context);
+
+    let result = media_api.get_temp_media("wrong_content_type_error").await;
+
+    match result {
+        Err(WechatError::Api { code, message }) => {
+            assert_eq!(code, 40007);
+            assert_eq!(message, "invalid media_id");
+        }
+        other => panic!("expected WechatError::Api, got: {:?}", other),
+    }
+}
+
+#[tokio::test]
+async fn test_media_get_temp_media_encodes_media_id_query_value() {
+    let mock_server = MockServer::start().await;
+
+    Mock::given(method("GET"))
+        .and(path("/cgi-bin/token"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "access_token": "mock_media_token",
+            "expires_in": 7200
+        })))
+        .mount(&mock_server)
+        .await;
+
+    let raw_media_id = "abc&evil=1==";
+
+    Mock::given(method("GET"))
+        .and(path("/cgi-bin/media/get"))
+        .and(query_param("access_token", "mock_media_token"))
+        .and(query_param("media_id", raw_media_id))
+        .respond_with(ResponseTemplate::new(200).set_body_raw(b"encoded_media_bytes", "image/jpeg"))
+        .mount(&mock_server)
+        .await;
+
+    let context = create_test_context(&mock_server).await;
+    let media_api = MediaApi::new(context);
+
+    let result = media_api.get_temp_media(raw_media_id).await;
+
+    assert!(result.is_ok());
+    assert_eq!(result.unwrap(), b"encoded_media_bytes");
+}
+
+#[tokio::test]
+async fn test_upload_temp_media_maps_minimal_error_payload_to_api_error() {
+    let mock_server = MockServer::start().await;
+
+    Mock::given(method("GET"))
+        .and(path("/cgi-bin/token"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "access_token": "mock_media_token",
+            "expires_in": 7200
+        })))
+        .mount(&mock_server)
+        .await;
+
+    Mock::given(method("POST"))
+        .and(path("/cgi-bin/media/upload"))
+        .and(query_param("access_token", "mock_media_token"))
+        .and(query_param("type", "image"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "errcode": 40001,
+            "errmsg": "invalid credential"
+        })))
+        .mount(&mock_server)
+        .await;
+
+    let context = create_test_context(&mock_server).await;
+    let media_api = MediaApi::new(context);
+    let result = media_api
+        .upload_temp_media(MediaType::Image, "demo.jpg", b"mock_image_data")
+        .await;
+
+    match result {
+        Err(WechatError::Api { code, message }) => {
+            assert_eq!(code, 40001);
+            assert_eq!(message, "invalid credential");
+        }
+        other => panic!("expected WechatError::Api, got: {:?}", other),
+    }
+}
+
+#[tokio::test]
+async fn test_qrcode_create_qrcode_returns_error_for_non_2xx_status() {
+    let mock_server = MockServer::start().await;
+
+    Mock::given(method("GET"))
+        .and(path("/cgi-bin/token"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "access_token": "mock_qrcode_token",
+            "expires_in": 7200
+        })))
+        .mount(&mock_server)
+        .await;
+
+    Mock::given(method("POST"))
+        .and(path("/cgi-bin/wxaapp/createwxaqrcode"))
+        .and(query_param("access_token", "mock_qrcode_token"))
+        .respond_with(ResponseTemplate::new(503).set_body_raw(b"upstream down", "image/png"))
+        .mount(&mock_server)
+        .await;
+
+    let context = create_test_context(&mock_server).await;
+    let qrcode_api = QrcodeApi::new(context);
+
+    let result = qrcode_api.create_qrcode("pages/index", Some(430)).await;
+
+    assert!(matches!(result, Err(WechatError::Http(_))));
+}
+
+#[tokio::test]
+async fn test_qrcode_get_wxa_code_detects_json_error_with_content_type_case_variant() {
+    let mock_server = MockServer::start().await;
+
+    Mock::given(method("GET"))
+        .and(path("/cgi-bin/token"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "access_token": "mock_qrcode_token",
+            "expires_in": 7200
+        })))
+        .mount(&mock_server)
+        .await;
+
+    Mock::given(method("POST"))
+        .and(path("/wxa/getwxacode"))
+        .and(query_param("access_token", "mock_qrcode_token"))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .insert_header("content-type", "Application/Json")
+                .set_body_raw(
+                    r#"{"errcode": 41030, "errmsg": "invalid page"}"#,
+                    "application/octet-stream",
+                ),
+        )
+        .mount(&mock_server)
+        .await;
+
+    let context = create_test_context(&mock_server).await;
+    let qrcode_api = QrcodeApi::new(context);
+    let result = qrcode_api.get_wxa_code(QrcodeOptions::new()).await;
+
+    match result {
+        Err(WechatError::Api { code, message }) => {
+            assert_eq!(code, 41030);
+            assert_eq!(message, "invalid page");
         }
         other => panic!("expected WechatError::Api, got: {:?}", other),
     }

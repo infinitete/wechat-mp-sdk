@@ -13,6 +13,7 @@
 //! - [`OpenApiApi::get_api_domain_ip`] - Get WeChat API server IP addresses
 //! - [`OpenApiApi::get_callback_ip`] - Get WeChat callback server IP addresses
 
+use std::fmt;
 use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
@@ -39,10 +40,19 @@ struct ClearApiQuotaRequest {
     cgi_path: String,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Clone, Serialize)]
 struct ClearQuotaByAppSecretRequest {
     appid: String,
     appsecret: String,
+}
+
+impl fmt::Debug for ClearQuotaByAppSecretRequest {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("ClearQuotaByAppSecretRequest")
+            .field("appid", &self.appid)
+            .field("appsecret", &"[REDACTED]")
+            .finish()
+    }
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -761,5 +771,18 @@ mod tests {
         let response = result.unwrap();
         assert_eq!(response.ip_list.len(), 2);
         assert_eq!(response.ip_list[0], "101.226.103.61");
+    }
+
+    #[test]
+    fn test_clear_quota_by_app_secret_request_debug_redacts_secret() {
+        let request = ClearQuotaByAppSecretRequest {
+            appid: "wx1234567890abcdef".to_string(),
+            appsecret: "top-secret-appsecret".to_string(),
+        };
+
+        let output = format!("{:?}", request);
+        assert!(output.contains("appsecret"));
+        assert!(output.contains("[REDACTED]"));
+        assert!(!output.contains("top-secret-appsecret"));
     }
 }

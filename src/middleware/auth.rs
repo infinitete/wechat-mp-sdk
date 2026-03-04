@@ -125,8 +125,8 @@ where
             // Get the access token
             let token = match token_manager.get_token().await {
                 Ok(t) => t,
-                Err(_e) => {
-                    log::warn!("Failed to fetch access token: {}", _e);
+                Err(_) => {
+                    log::warn!("{}", access_token_fetch_warning_message());
                     // If we can't get a token, pass the request through
                     // The inner service will handle the error case
                     return inner.call(req).await;
@@ -163,8 +163,8 @@ where
         Box::pin(async move {
             let token = match token_manager.get_token().await {
                 Ok(t) => t,
-                Err(_e) => {
-                    log::warn!("Failed to fetch access token: {}", _e);
+                Err(_) => {
+                    log::warn!("{}", access_token_fetch_warning_message());
                     return inner.call(req).await;
                 }
             };
@@ -209,6 +209,10 @@ fn add_access_token_query_to_url(url: &Url, token: &str) -> Url {
     let mut url = url.clone();
     url.query_pairs_mut().append_pair("access_token", token);
     url
+}
+
+fn access_token_fetch_warning_message() -> &'static str {
+    "Failed to fetch access token; skipping token injection"
 }
 
 /// Encode a token for URL query parameters using standard percent-encoding.
@@ -314,8 +318,8 @@ where
         Box::pin(async move {
             let token = match token_manager.get_token().await {
                 Ok(t) => t,
-                Err(_e) => {
-                    log::warn!("Failed to fetch access token: {}", _e);
+                Err(_) => {
+                    log::warn!("{}", access_token_fetch_warning_message());
                     return inner.call(req).await;
                 }
             };
@@ -360,8 +364,8 @@ where
         Box::pin(async move {
             let token = match token_manager.get_token().await {
                 Ok(t) => t,
-                Err(_e) => {
-                    log::warn!("Failed to fetch access token: {}", _e);
+                Err(_) => {
+                    log::warn!("{}", access_token_fetch_warning_message());
                     return inner.call(req).await;
                 }
             };
@@ -607,5 +611,16 @@ mod tests {
         let token_with_plus = "a+b";
         let encoded = encode_token(token_with_plus);
         assert!(encoded.contains("%2B"), "Plus should be encoded");
+    }
+
+    #[test]
+    fn test_access_token_fetch_warning_message_is_sanitized() {
+        let msg = access_token_fetch_warning_message();
+        assert_eq!(
+            msg,
+            "Failed to fetch access token; skipping token injection"
+        );
+        assert!(!msg.contains("access_token="));
+        assert!(!msg.contains("secret="));
     }
 }

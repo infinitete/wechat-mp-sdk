@@ -48,12 +48,13 @@ use serde::Deserialize;
 use tokio::sync::{Mutex, Notify, RwLock};
 
 use crate::client::WechatClient;
-use crate::error::WechatError;
+use crate::error::{HttpError, WechatError};
 use crate::types::AccessToken;
 use crate::utils::jittered_delay;
 
 const MAX_RETRIES: u32 = 3;
 const RETRY_DELAY_MS: u64 = 100;
+const MAX_TOKEN_TTL_SECS: u64 = 60 * 60 * 24 * 365;
 
 /// Retryable WeChat API error codes.
 /// - -1: System busy
@@ -67,13 +68,18 @@ pub(crate) struct CachedToken {
 
 impl CachedToken {
     pub fn is_expired(&self, buffer: Duration) -> bool {
-        Instant::now() + buffer >= self.expires_at
+        match Instant::now().checked_add(buffer) {
+            Some(deadline) => deadline >= self.expires_at,
+            None => true,
+        }
     }
 }
 
 #[derive(Debug, Deserialize)]
 pub(crate) struct TokenResponse {
+    #[serde(default)]
     pub(crate) access_token: String,
+    #[serde(default)]
     pub(crate) expires_in: u64,
     #[serde(default)]
     pub(crate) errcode: i32,
@@ -104,8 +110,8 @@ struct InFlightFetch {
 /// Uses single-flight pattern to merge concurrent refresh requests.
 pub struct TokenManager {
     client: WechatClient,
-    pub(crate) cache: RwLock<Option<CachedToken>>,
-    in_flight: Mutex<Option<Arc<InFlightFetch>>>,
+    pub(crate) cache: Arc<RwLock<Option<CachedToken>>>,
+    in_flight: Arc<Mutex<Option<Arc<InFlightFetch>>>>,
     pub(crate) refresh_buffer: Duration,
     max_retries: u32,
     retry_delay_ms: u64,
@@ -125,8 +131,8 @@ impl TokenManager {
     pub fn new(client: WechatClient) -> Self {
         Self {
             client,
-            cache: RwLock::new(None),
-            in_flight: Mutex::new(None),
+            cache: Arc::new(RwLock::new(None)),
+            in_flight: Arc::new(Mutex::new(None)),
             refresh_buffer: Duration::from_secs(5 * 60),
             max_retries: MAX_RETRIES,
             retry_delay_ms: RETRY_DELAY_MS,
@@ -188,7 +194,42 @@ impl TokenManager {
         };
 
         if is_creator {
-            let fetch_result = self.fetch_token_with_retry().await;
+            self.spawn_refresh_task(Arc::clone(&in_flight_fetch));
+        }
+
+        // Wait for the shared single-flight result.
+        // Creator and waiters both follow this path so cancellation of the creator
+        // cannot strand the in-flight state.
+        loop {
+            let notified = in_flight_fetch.notify.notified();
+
+            if let Some(ref result) = *in_flight_fetch.result.lock().await {
+                return result.clone().map(|(token, _)| token);
+            }
+
+            notified.await;
+
+            if let Some(ref result) = *in_flight_fetch.result.lock().await {
+                return result.clone().map(|(token, _)| token);
+            }
+        }
+    }
+
+    fn spawn_refresh_task(&self, in_flight_fetch: Arc<InFlightFetch>) {
+        let client = self.client.clone();
+        let cache = Arc::clone(&self.cache);
+        let in_flight = Arc::clone(&self.in_flight);
+        let max_retries = self.max_retries;
+        let retry_delay_ms = self.retry_delay_ms;
+
+        tokio::spawn(async move {
+            let fetch_result = TokenManager::fetch_token_with_retry_for_client(
+                &client,
+                max_retries,
+                retry_delay_ms,
+            )
+            .await;
+
             let result_to_store = match fetch_result {
                 Ok(TokenResponse {
                     access_token,
@@ -200,51 +241,36 @@ impl TokenManager {
 
             if let Ok((ref token_str, expires_in)) = result_to_store {
                 if let Ok(token) = AccessToken::new(token_str) {
-                    let cached = CachedToken {
-                        token,
-                        expires_at: Instant::now() + Duration::from_secs(expires_in),
-                    };
-                    *self.cache.write().await = Some(cached);
+                    let ttl = Duration::from_secs(expires_in.min(MAX_TOKEN_TTL_SECS));
+                    if let Some(expires_at) = Instant::now().checked_add(ttl) {
+                        let cached = CachedToken { token, expires_at };
+                        *cache.write().await = Some(cached);
+                    }
                 }
             }
 
-            {
-                *in_flight_fetch.result.lock().await = Some(result_to_store.clone());
-            }
+            *in_flight_fetch.result.lock().await = Some(result_to_store);
             in_flight_fetch.notify.notify_waiters();
-
-            *self.in_flight.lock().await = None;
-
-            result_to_store.map(|(token, _)| token)
-        } else {
-            // Correct single-flight pattern: register as waiter BEFORE checking result.
-            // This ensures we don't miss the notification if notify_waiters() is called
-            // between checking result and calling notified().await.
-            loop {
-                let notified = in_flight_fetch.notify.notified();
-
-                // Check if result is already available
-                if let Some(ref result) = *in_flight_fetch.result.lock().await {
-                    return result.clone().map(|(token, _)| token);
-                }
-
-                // Wait for notification - we're now registered, so we won't miss it
-                notified.await;
-
-                // After being notified, check again for result
-                if let Some(ref result) = *in_flight_fetch.result.lock().await {
-                    return result.clone().map(|(token, _)| token);
-                }
-                // Loop again if result still not available (shouldn't happen normally)
-            }
-        }
+            *in_flight.lock().await = None;
+        });
     }
 
+    #[cfg(test)]
     async fn fetch_token_with_retry(&self) -> Result<TokenResponse, WechatError> {
+        Self::fetch_token_with_retry_for_client(&self.client, self.max_retries, self.retry_delay_ms)
+            .await
+    }
+
+    async fn fetch_token_with_retry_for_client(
+        client: &WechatClient,
+        max_retries: u32,
+        retry_delay_ms: u64,
+    ) -> Result<TokenResponse, WechatError> {
+        let attempts = max_retries.max(1);
         let mut last_error = None;
 
-        for attempt in 0..self.max_retries {
-            match self.fetch_token().await {
+        for attempt in 0..attempts {
+            match Self::fetch_token_for_client(client).await {
                 Ok(response) => {
                     if response.is_success() {
                         return Ok(response);
@@ -254,8 +280,8 @@ impl TokenManager {
                             code: response.errcode,
                             message: response.errmsg,
                         });
-                        if attempt < self.max_retries - 1 {
-                            tokio::time::sleep(jittered_delay(self.retry_delay_ms, attempt)).await;
+                        if attempt < attempts - 1 {
+                            tokio::time::sleep(jittered_delay(retry_delay_ms, attempt)).await;
                         }
                     } else {
                         return Err(WechatError::Api {
@@ -266,8 +292,8 @@ impl TokenManager {
                 }
                 Err(WechatError::Http(e)) if e.is_transient() => {
                     last_error = Some(WechatError::Http(e));
-                    if attempt < self.max_retries - 1 {
-                        tokio::time::sleep(jittered_delay(self.retry_delay_ms, attempt)).await;
+                    if attempt < attempts - 1 {
+                        tokio::time::sleep(jittered_delay(retry_delay_ms, attempt)).await;
                     }
                 }
                 Err(e) => return Err(e),
@@ -277,15 +303,23 @@ impl TokenManager {
         Err(last_error.unwrap_or_else(|| WechatError::Token("Unknown error".to_string())))
     }
 
-    async fn fetch_token(&self) -> Result<TokenResponse, WechatError> {
+    async fn fetch_token_for_client(client: &WechatClient) -> Result<TokenResponse, WechatError> {
         let path = "/cgi-bin/token";
         let query = [
             ("grant_type", "client_credential"),
-            ("appid", self.client.appid()),
-            ("secret", self.client.secret()),
+            ("appid", client.appid()),
+            ("secret", client.secret()),
         ];
+        let url = format!("{}{}", client.base_url(), path);
+        let request = client.http().get(&url).query(&query).build()?;
+        let response = client.send_request(request).await?;
+        if let Err(error) = response.error_for_status_ref() {
+            return Err(error.into());
+        }
 
-        self.client.get(path, &query).await
+        let bytes = response.bytes().await?;
+        serde_json::from_slice::<TokenResponse>(&bytes)
+            .map_err(|error| WechatError::Http(HttpError::Decode(error.to_string())))
     }
 
     /// Invalidate cached token.
@@ -345,8 +379,8 @@ impl TokenManagerBuilder {
     pub fn build(self) -> TokenManager {
         TokenManager {
             client: self.client,
-            cache: RwLock::new(None),
-            in_flight: Mutex::new(None),
+            cache: Arc::new(RwLock::new(None)),
+            in_flight: Arc::new(Mutex::new(None)),
             refresh_buffer: Duration::from_secs(self.refresh_buffer_secs.unwrap_or(300)),
             max_retries: self.max_retries.unwrap_or(MAX_RETRIES),
             retry_delay_ms: self.retry_delay_ms.unwrap_or(RETRY_DELAY_MS),
@@ -631,6 +665,95 @@ mod tests {
         assert_eq!(response.access_token, "retry_success_token");
         assert_eq!(response.expires_in, 7200);
         assert_eq!(call_count.load(Ordering::SeqCst), 3);
+    }
+
+    #[tokio::test]
+    async fn test_fetch_token_with_retry_retries_retryable_api_error_codes_then_succeeds() {
+        let mock_server = MockServer::start().await;
+        let call_count = Arc::new(AtomicU32::new(0));
+        let call_count_clone = Arc::clone(&call_count);
+
+        Mock::given(method("GET"))
+            .and(path("/cgi-bin/token"))
+            .and(query_param("grant_type", "client_credential"))
+            .respond_with(move |_request: &wiremock::Request| {
+                let current = call_count_clone.fetch_add(1, Ordering::SeqCst);
+                if current < 2 {
+                    ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                        "errcode": -1,
+                        "errmsg": "system busy"
+                    }))
+                } else {
+                    ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                        "access_token": "retryable_api_success_token",
+                        "expires_in": 7200,
+                        "errcode": 0,
+                        "errmsg": "ok"
+                    }))
+                }
+            })
+            .mount(&mock_server)
+            .await;
+
+        let client = create_test_client_with_base_url(&mock_server.uri());
+        let manager = TokenManager::builder(client)
+            .max_retries(3)
+            .retry_delay_ms(1)
+            .build();
+
+        let response = manager.fetch_token_with_retry().await.unwrap();
+
+        assert_eq!(response.access_token, "retryable_api_success_token");
+        assert_eq!(response.expires_in, 7200);
+        assert_eq!(call_count.load(Ordering::SeqCst), 3);
+    }
+
+    #[tokio::test]
+    async fn test_single_flight_creator_cancellation_does_not_stall_waiters() {
+        let mock_server = MockServer::start().await;
+
+        Mock::given(method("GET"))
+            .and(path("/cgi-bin/token"))
+            .and(query_param("grant_type", "client_credential"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_delay(Duration::from_millis(120))
+                    .set_body_json(serde_json::json!({
+                        "access_token": "cancel_safe_token",
+                        "expires_in": 7200,
+                        "errcode": 0,
+                        "errmsg": "ok"
+                    })),
+            )
+            .mount(&mock_server)
+            .await;
+
+        let client = create_test_client_with_base_url(&mock_server.uri());
+        let manager = Arc::new(TokenManager::new(client));
+
+        let first = {
+            let manager = Arc::clone(&manager);
+            tokio::spawn(async move { manager.get_token().await })
+        };
+
+        tokio::time::sleep(Duration::from_millis(20)).await;
+        first.abort();
+        let _ = first.await;
+
+        let second = tokio::time::timeout(Duration::from_millis(500), manager.get_token()).await;
+        let token = second.expect("second token request timed out").unwrap();
+        assert_eq!(token, "cancel_safe_token");
+    }
+
+    #[test]
+    fn test_cached_token_is_expired_when_buffer_addition_overflows() {
+        let token = AccessToken::new("test_token").unwrap();
+        let cached = CachedToken {
+            token,
+            expires_at: Instant::now() + Duration::from_secs(1),
+        };
+
+        assert!(cached.is_expired(Duration::MAX));
     }
 
     #[test]

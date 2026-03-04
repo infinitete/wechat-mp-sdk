@@ -46,6 +46,8 @@ impl RetryMiddleware {
     }
 
     /// Set maximum number of retry attempts.
+    ///
+    /// `max = 0` means "disable retries" (one attempt is still executed).
     pub fn with_max_retries(mut self, max: usize) -> Self {
         self.max_retries = max;
         self
@@ -120,7 +122,7 @@ impl<S, R> Service<R> for RetryMiddlewareService<S>
 where
     S: Service<R> + Send + Clone + 'static,
     S::Future: Send,
-    S::Error: std::fmt::Debug + Send + From<WechatError>,
+    S::Error: std::fmt::Debug + Send + 'static,
     S::Response: Send,
     R: Send + Clone + RetryableRequest + 'static,
 {
@@ -139,14 +141,8 @@ where
         let retry_post = self.retry_post;
 
         Box::pin(async move {
-            // Handle max_retries=0 explicitly: no attempts should be made
-            if max_retries == 0 {
-                return Err(WechatError::Config(
-                    "max_retries is 0: no retry attempts configured".to_string(),
-                )
-                .into());
-            }
-
+            // max_retries=0 means "no retry", but still perform one attempt.
+            let attempts = max_retries.max(1);
             let mut last_error: Option<S::Error> = None;
 
             // Check if request is retryable
@@ -155,7 +151,7 @@ where
                 return inner.call(req).await;
             }
 
-            for attempt in 0..max_retries {
+            for attempt in 0..attempts {
                 // Clone the request for each attempt
                 let req_clone = req.clone();
 
@@ -168,7 +164,7 @@ where
 
                         if is_retryable {
                             last_error = Some(e);
-                            if attempt < max_retries - 1 {
+                            if attempt < attempts - 1 {
                                 sleep(jittered_delay(
                                     delay_ms,
                                     u32::try_from(attempt).unwrap_or(u32::MAX),
@@ -183,11 +179,8 @@ where
                 }
             }
 
-            // At this point, max_retries > 0 and all attempts failed with retryable errors
-            // last_error is guaranteed to be Some because the loop ran at least once
-            Err(last_error.unwrap_or_else(|| {
-                WechatError::Config("Retry exhausted without capturing error".to_string()).into()
-            }))
+            // At least one attempt always runs. If we reached here all attempts failed.
+            Err(last_error.expect("retry loop completed without capturing an error"))
         })
     }
 }
@@ -199,14 +192,29 @@ fn check_error_retryable<E: std::fmt::Debug + 'static>(error: &E) -> bool {
         return RetryMiddleware::is_retryable_error(wechat_err);
     }
 
+    // Retry raw reqwest errors as well. This is required when middleware is
+    // layered over reqwest-based services where error type is reqwest::Error.
+    if let Some(reqwest_err) = (error as &dyn std::any::Any).downcast_ref::<reqwest::Error>() {
+        return is_retryable_reqwest_error(reqwest_err);
+    }
+
     // For unknown error types, don't retry by default
     false
+}
+
+fn is_retryable_reqwest_error(error: &reqwest::Error) -> bool {
+    match error.status() {
+        Some(status) => status.is_server_error() || status.as_u16() == 429,
+        None => true,
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::error::WechatError;
+    use wiremock::matchers::{method, path};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
 
     #[test]
     fn test_retry_middleware_exists() {
@@ -288,6 +296,52 @@ mod tests {
         assert!(
             !RetryMiddleware::is_retryable_error(&decode_err),
             "Decode errors should not be retried",
+        );
+    }
+
+    #[tokio::test]
+    async fn test_check_error_retryable_for_reqwest_503_status_error() {
+        let mock_server = MockServer::start().await;
+
+        Mock::given(method("GET"))
+            .and(path("/status-503"))
+            .respond_with(ResponseTemplate::new(503))
+            .mount(&mock_server)
+            .await;
+
+        let response = reqwest::Client::new()
+            .get(format!("{}/status-503", mock_server.uri()))
+            .send()
+            .await
+            .unwrap();
+        let err = response.error_for_status().unwrap_err();
+
+        assert!(
+            check_error_retryable(&err),
+            "503 status errors should be considered retryable",
+        );
+    }
+
+    #[tokio::test]
+    async fn test_check_error_retryable_for_reqwest_400_status_error() {
+        let mock_server = MockServer::start().await;
+
+        Mock::given(method("GET"))
+            .and(path("/status-400"))
+            .respond_with(ResponseTemplate::new(400))
+            .mount(&mock_server)
+            .await;
+
+        let response = reqwest::Client::new()
+            .get(format!("{}/status-400", mock_server.uri()))
+            .send()
+            .await
+            .unwrap();
+        let err = response.error_for_status().unwrap_err();
+
+        assert!(
+            !check_error_retryable(&err),
+            "400 status errors should not be considered retryable",
         );
     }
 
@@ -380,19 +434,15 @@ mod tests {
         }
     }
 
-    /// Test: max_retries=0 should NOT panic - should return error
-    /// This test EXPOSES the last_error.unwrap() panic risk
+    /// Test: max_retries=0 should NOT panic and should still perform one attempt.
     #[tokio::test]
-    async fn test_max_retries_zero_should_not_panic() {
+    async fn test_max_retries_zero_should_still_attempt_once() {
         let middleware = RetryMiddleware::new().with_max_retries(0);
         let mut service = middleware.layer(SuccessService);
 
         let result: Result<String, WechatError> = service.call(MockIdempotentRequest).await;
 
-        assert!(
-            result.is_err(),
-            "max_retries=0 should return error, not panic"
-        );
+        assert!(result.is_ok(), "max_retries=0 should still execute once");
     }
 
     /// Test: non-retryable error should return immediately without retry

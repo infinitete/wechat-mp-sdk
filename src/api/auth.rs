@@ -2,6 +2,7 @@
 //!
 //! Provides login and authentication related APIs.
 
+use std::fmt;
 use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
@@ -62,12 +63,23 @@ impl LoginResponse {
     }
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Clone, Serialize)]
 struct StableAccessTokenRequest {
     grant_type: String,
     appid: String,
     secret: String,
     force_refresh: bool,
+}
+
+impl fmt::Debug for StableAccessTokenRequest {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("StableAccessTokenRequest")
+            .field("grant_type", &self.grant_type)
+            .field("appid", &self.appid)
+            .field("secret", &"[REDACTED]")
+            .field("force_refresh", &self.force_refresh)
+            .finish()
+    }
 }
 
 /// Response from getStableAccessToken
@@ -88,18 +100,38 @@ pub struct StableAccessTokenResponse {
     pub(crate) errmsg: String,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Clone, Serialize)]
 struct CheckSessionKeyRequest {
     openid: String,
     signature: String,
     sig_method: String,
 }
 
-#[derive(Debug, Clone, Serialize)]
+impl fmt::Debug for CheckSessionKeyRequest {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("CheckSessionKeyRequest")
+            .field("openid", &self.openid)
+            .field("signature", &"[REDACTED]")
+            .field("sig_method", &self.sig_method)
+            .finish()
+    }
+}
+
+#[derive(Clone, Serialize)]
 struct ResetUserSessionKeyRequest {
     openid: String,
     signature: String,
     sig_method: String,
+}
+
+impl fmt::Debug for ResetUserSessionKeyRequest {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("ResetUserSessionKeyRequest")
+            .field("openid", &self.openid)
+            .field("signature", &"[REDACTED]")
+            .field("sig_method", &self.sig_method)
+            .finish()
+    }
 }
 
 /// Response from resetUserSessionKey
@@ -357,5 +389,48 @@ mod tests {
         let response: ResetSessionKeyResponse = serde_json::from_str(json).unwrap();
         assert!(response.openid.is_empty());
         assert!(response.session_key.is_empty());
+    }
+
+    #[test]
+    fn test_stable_access_token_request_debug_redacts_secret() {
+        let request = StableAccessTokenRequest {
+            grant_type: "client_credential".to_string(),
+            appid: "wx1234567890abcdef".to_string(),
+            secret: "top-secret-value".to_string(),
+            force_refresh: false,
+        };
+
+        let output = format!("{:?}", request);
+        assert!(output.contains("secret"));
+        assert!(output.contains("[REDACTED]"));
+        assert!(!output.contains("top-secret-value"));
+    }
+
+    #[test]
+    fn test_check_session_key_request_debug_redacts_signature() {
+        let request = CheckSessionKeyRequest {
+            openid: "o123".to_string(),
+            signature: "sensitive-signature".to_string(),
+            sig_method: "hmac_sha256".to_string(),
+        };
+
+        let output = format!("{:?}", request);
+        assert!(output.contains("signature"));
+        assert!(output.contains("[REDACTED]"));
+        assert!(!output.contains("sensitive-signature"));
+    }
+
+    #[test]
+    fn test_reset_user_session_key_request_debug_redacts_signature() {
+        let request = ResetUserSessionKeyRequest {
+            openid: "o123".to_string(),
+            signature: "another-sensitive-signature".to_string(),
+            sig_method: "hmac_sha256".to_string(),
+        };
+
+        let output = format!("{:?}", request);
+        assert!(output.contains("signature"));
+        assert!(output.contains("[REDACTED]"));
+        assert!(!output.contains("another-sensitive-signature"));
     }
 }
